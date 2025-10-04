@@ -1,0 +1,50 @@
+{
+  "name": "debugmcpextension",
+  "displayName": "DebugMCP",
+  "description": "A VSCode extension for debugging projects with enhanced MCP debugging capabilities for all programming languages",
+  "version": "0.0.6",
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "icon": "assets/debug_mcp_icon.png",
+  "categories": [
+    "Debuggers",
+    "AI",
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/DebugMCP.git"
+  },
+  "activationEvents": [
+    "onDebug",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "@types/express": "^5.0.3",
+    "express": "^5.1.0",
+    "fastmcp": "^3.17.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.104.0",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.34.0",
+    "typescript": "^5.9.2"
+  }
+}
