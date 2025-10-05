@@ -250,7 +250,6 @@ export class DebugMCPServer {
                 throw new Error('No workspace folder found');
             }
             
-            // If no configuration name provided, prompt user to select one
             let selectedConfigName = await this.promptForConfiguration(workspaceFolder);
             
             // Get debug configuration from launch.json or create default
