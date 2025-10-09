@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
 import * as path from 'path';
+import * as fs from 'fs';
 
 // Dynamic import for FastMCP since it's an ES module
 let FastMCP: any;
@@ -14,7 +15,7 @@ async function initializeFastMCP() {
 
 class DebugState {
     public sessionActive: boolean;
-    public filePath: string | null;
+    public fileFullPath: string | null;
     public fileName: string | null;
     public currentLine: number | null;
     public currentLineContent: string | null;
@@ -24,7 +25,7 @@ class DebugState {
 
     constructor() {
         this.sessionActive = false;
-        this.filePath = null;
+        this.fileFullPath = null;
         this.fileName = null;
         this.currentLine = null;
         this.currentLineContent = null;
@@ -41,97 +42,33 @@ export class DebugMCPServer {
     private initialized: boolean = false;
     private readonly numNextLines: number = 3;
 
-    // Structured instruction data as described in the refactor document
-    private readonly debugInstructions = {
-        instructions: {
-            title: "DebugMCP Instructions Guide",
-            content:`⚠️  CRITICAL INSTRUCTIONS - FOLLOW THESE STEPS:
-1. FIRST: Use 'add_breakpoint' to set an initial breakpoint at a starting point
-2. THEN: Use 'start_debugging' tool to start debugging
-3. FINALLY: Use step_over, step_into, add_breakpoint, continue_execution, get_variables_values to navigate and inspect step by step
-
-📋 DETAILED INSTRUCTIONS:
-- Before debugging: Set at least one breakpoint in your code
-- Start debugging: Launch the debug session with proper configuration
-- Navigate: Use stepping commands to move through code execution
-- Inspect: Check variables and evaluate expressions when needed
-- Continue: Use continue_execution to run until next breakpoint
-
-❌ COMMON MISTAKE: Starting debugging without breakpoints
-✅ BEST PRACTICE: Always set an initial breakpoint before starting debugging`
-        },
-        breakpoints: {
-            title: "Breakpoint Strategy Guide", 
-            content: `🎯 BREAKPOINT STRATEGY:
-- Set breakpoints inside the function body and not on the signature line itself
-- Set breakpoints before loops or conditionals  
-- Set breakpoints at variable assignments you want to inspect
-- Set breakpoints at error-prone areas
-
-📍 BEST PRACTICES:
-- Place breakpoints on executable lines (avoid comments, empty lines)
-- Set breakpoints at the start of functions to inspect parameters
-- Use conditional breakpoints for loops that iterate many times
-- Set breakpoints before and after critical operations
-- Avoid setting breakpoints on function signature lines`
-        },
-        troubleshooting: {
-            title: "Debugging Troubleshooting Guide",
-            content: `🔧 COMMON ISSUES & SOLUTIONS:
-
-1. Debug session won't start:
-   - Ensure proper language extension is installed
-   - Check that file path is correct and accessible
-   - Verify workspace folder is set
-
-2. Breakpoints not hit:
-   - Ensure breakpoints are on executable lines
-   - Check that code path is actually executed
-   - Verify breakpoints are enabled
-
-3. Variables not showing:
-   - Make sure execution is paused at breakpoint
-   - Check that variables are in current scope
-   - Try different scope options (local/global/all)
-
-4. Step commands not working:
-   - Ensure debug session is active and paused
-   - Check that current line has executable code
-   - Try continue_execution if stepping fails`
-        },
-        languages: {
-            python: {
-                title: "Python Debugging Tips",
-                content: `🐍 PYTHON-SPECIFIC GUIDANCE:
-- Use Python debugger extension
-- Set breakpoints inside function bodies
-- Check virtual environment activation
-- Use 'python' debug configuration type
-- Common file extensions: .py`
-            },
-            javascript: {
-                title: "JavaScript Debugging Tips", 
-                content: `🟨 JAVASCRIPT-SPECIFIC GUIDANCE:
-- Use Node.js debugger for server-side JS
-- Use browser debugger for client-side JS
-- Set breakpoints in .js, .ts, .jsx, .tsx files
-- Use 'pwa-node' debug configuration type
-- Check that Node.js is installed`
-            },
-            java: {
-                title: "Java Debugging Tips",
-                content: `☕ JAVA-SPECIFIC GUIDANCE:
-- Use Java Extension Pack
-- Ensure Java is compiled before debugging
-- Set breakpoints in .java files
-- Use 'java' debug configuration type
-- Check JAVA_HOME environment variable`
-            }
-        }
-    };
 
     constructor() {
         // Initialization will happen in initialize() method
+    }
+
+    /**
+     * Load content from a Markdown file in the docs directory
+     * @param relativePath - Path relative to the docs directory (e.g., 'debug_instructions.md')
+     * @returns Promise<string> - The file content or error message
+     */
+    private async loadMarkdownFile(relativePath: string): Promise<string> {
+        try {
+            // Get the extension's installation directory
+            const extensionPath = __dirname; // This points to the compiled extension's directory
+            const docsPath = path.join(extensionPath, '..', 'docs', relativePath);
+            
+            console.log(`Loading markdown file from: ${docsPath}`);
+            
+            // Read the file content
+            const content = await fs.promises.readFile(docsPath, 'utf8');
+            console.log(`Successfully loaded ${relativePath}, content length: ${content.length}`);
+            
+            return content;
+        } catch (error) {
+            console.error(`Failed to load ${relativePath}:`, error);
+            return `Error loading documentation from ${relativePath}: ${error}`;
+        }
     }
 
     async initialize() {
@@ -155,12 +92,12 @@ export class DebugMCPServer {
         // Start debugging tool
         this.server.addTool({
             name: 'start_debugging',
-            description: 'Start a debug session for a source code file. Before using this tool, make sure to read debugmcp://docs/debug_instructions for step-by-step instructions and debugmcp://docs/breakpoints for breakpoint strategies.',
+            description: 'Start a debug session for a source code file. Before using this tool, make sure to read debugmcp://docs/debug_instructions for step-by-step instructions.',
             parameters: z.object({
-                filePath: z.string().describe('Full path to the source code file to debug'),
+                fileFullPath: z.string().describe('Full path to the source code file to debug'),
                 workingDirectory: z.string().optional().describe('Working directory for the debug session (optional)'),
             }),
-            execute: async (args: { filePath: string; workingDirectory?: string; configurationName?: string }) => {
+            execute: async (args: { fileFullPath: string; workingDirectory?: string; configurationName?: string }) => {
                 return await this.handleStartDebugging(args);
             },
         });
@@ -225,7 +162,7 @@ export class DebugMCPServer {
         // Add breakpoint tool
         this.server.addTool({
             name: 'add_breakpoint',
-            description: 'Add a breakpoint at a specific code line. See debugmcp://docs/breakpoints for breakpoint strategies.',
+            description: 'Add a breakpoint at a specific code line.',
             parameters: z.object({
                 fileFullPath: z.string().describe('Full path to the file'),
                 line: z.string().describe('Line content'),
@@ -294,57 +231,17 @@ export class DebugMCPServer {
     }
 
     private setupResources() {
-        // Store reference to this for arrow functions
-        const debugInstructions = this.debugInstructions;
-        
         // Add MCP resources for debugging documentation
         this.server.addResource({
             uri: 'debugmcp://docs/debug_instructions',
             name: 'Debugging Instructions Guide',
             description: 'Step-by-step instructions for debugging with DebugMCP',
             mimeType: 'text/markdown',
-            async load() {
-                try {
-                    const title = debugInstructions.instructions.title;
-                    const content = debugInstructions.instructions.content;
-                    const fullContent = `# ${title}\n\n${content}`;
-                    console.log('debug_instructions content length:', fullContent.length);
-                    console.log('debug_instructions content preview:', fullContent.substring(0, 100));
-                    
-                    return {
-                        text: fullContent
-                    };
-                } catch (error) {
-                    console.error('Error generating debug_instructions content:', error);
-                    return {
-                        text: 'Error loading debug instructions'
-                    };
-                }
-            }
-        });
-
-        this.server.addResource({
-            uri: 'debugmcp://docs/breakpoints',
-            name: 'Breakpoint Strategy Guide',
-            description: 'Best practices for setting effective breakpoints',
-            mimeType: 'text/markdown',
-            async load() {
-                try {
-                    const title = debugInstructions.breakpoints.title;
-                    const content = debugInstructions.breakpoints.content;
-                    const fullContent = `# ${title}\n\n${content}`;
-                    console.log('breakpoints content length:', fullContent.length);
-                    console.log('breakpoints content preview:', fullContent.substring(0, 100));
-                    
-                    return {
-                        text: fullContent
-                    };
-                } catch (error) {
-                    console.error('Error generating breakpoints content:', error);
-                    return {
-                        text: 'Error loading breakpoint strategies'
-                    };
-                }
+            load: async () => {
+                const content = await this.loadMarkdownFile('debug_instructions.md');
+                return {
+                    text: content
+                };
             }
         });
 
@@ -353,49 +250,40 @@ export class DebugMCPServer {
             name: 'Debugging Troubleshooting Guide',
             description: 'Common issues and solutions for debugging problems',
             mimeType: 'text/markdown',
-            async load() {
-                try {
-                    const title = debugInstructions.troubleshooting.title;
-                    const content = debugInstructions.troubleshooting.content;
-                    const fullContent = `# ${title}\n\n${content}`;                    
-                    return {
-                        text: fullContent
-                    };
-                } catch (error) {
-                    console.error('Error generating troubleshooting content:', error);
-                    return {
-                        text: 'Error loading troubleshooting guide'
-                    };
-                }
+            load: async () => {
+                const content = await this.loadMarkdownFile('troubleshooting.md');
+                return {
+                    text: content
+                };
             }
         });
 
         // Add language-specific resources
-        Object.entries(debugInstructions.languages).forEach(([language, guide]) => {
+        const languages = ['python', 'javascript', 'java'];
+        const languageTitles = {
+            'python': 'Python Debugging Tips',
+            'javascript': 'JavaScript Debugging Tips',
+            'java': 'Java Debugging Tips'
+        };
+
+        languages.forEach(language => {
             this.server.addResource({
                 uri: `debugmcp://docs/languages/${language}`,
-                name: `${guide.title}`,
+                name: languageTitles[language as keyof typeof languageTitles],
                 description: `Debugging tips specific to ${language}`,
                 mimeType: 'text/markdown',
-                async load() {
-                    try {
-                        const fullContent = `# ${guide.title}\n\n${guide.content}`;                        
-                        return {
-                            text: fullContent
-                        };
-                    } catch (error) {
-                        console.error(`Error generating ${language} content:`, error);
-                        return {
-                            text: `Error loading ${language} debugging tips`
-                        };
-                    }
+                load: async () => {
+                    const content = await this.loadMarkdownFile(`languages/${language}.md`);
+                    return {
+                        text: content
+                    };
                 }
             });
         });
     }
 
-    private detectLanguageFromFilePath(filePath: string): string {
-        const extension = path.extname(filePath).toLowerCase();
+    private detectLanguageFromFilePath(fileFullPath: string): string {
+        const extension = path.extname(fileFullPath).toLowerCase();
         
         const languageMap: { [key: string]: string } = {
             '.py': 'python',
@@ -418,7 +306,7 @@ export class DebugMCPServer {
     }
 
     private async handleStartDebugging(args: any): Promise<string> {
-        const { filePath, workingDirectory } = args;
+        const { fileFullPath, workingDirectory } = args;
         
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -429,12 +317,12 @@ export class DebugMCPServer {
             let selectedConfigName = await this.promptForConfiguration(workspaceFolder);
             
             // Get debug configuration from launch.json or create default
-            const debugConfig = await this.getDebugConfig(workspaceFolder, filePath, workingDirectory, selectedConfigName);
+            const debugConfig = await this.getDebugConfig(workspaceFolder, fileFullPath, workingDirectory, selectedConfigName);
 
             const started = await vscode.debug.startDebugging(workspaceFolder, debugConfig);
             if (started) {
                 const configInfo = selectedConfigName ? ` using configuration '${selectedConfigName}'` : ' with default configuration';
-                return `Debug session started successfully for: ${filePath}${configInfo}`;
+                return `Debug session started successfully for: ${fileFullPath}${configInfo}`;
             } else {
                 throw new Error('Failed to start debug session. Make sure the appropriate language extension is installed.');
             }
@@ -575,26 +463,26 @@ export class DebugMCPServer {
     }
 
     private async handleAddBreakpoint(args: any): Promise<string> {
-        const { filePath, lineNumber } = args;
+        const { fileFullPath, lineNumber } = args;
         
         try {
-            const uri = vscode.Uri.file(filePath);
+            const uri = vscode.Uri.file(fileFullPath);
             const breakpoint = new vscode.SourceBreakpoint(
                 new vscode.Location(uri, new vscode.Position(lineNumber - 1, 0))
             );
             
             vscode.debug.addBreakpoints([breakpoint]);
-            return `Breakpoint added at ${filePath}:${lineNumber}`;
+            return `Breakpoint added at ${fileFullPath}:${lineNumber}`;
         } catch (error) {
             throw new Error(`Error adding breakpoint: ${error}`);
         }
     }
 
     private async handleRemoveBreakpoint(args: any): Promise<string> {
-        const { filePath, line } = args;
+        const { fileFullPath, line } = args;
         
         try {
-            const uri = vscode.Uri.file(filePath);
+            const uri = vscode.Uri.file(fileFullPath);
             const breakpoints = vscode.debug.breakpoints.filter(bp => {
                 if (bp instanceof vscode.SourceBreakpoint) {
                     return bp.location.uri.toString() === uri.toString() && 
@@ -605,9 +493,9 @@ export class DebugMCPServer {
             
             if (breakpoints.length > 0) {
                 vscode.debug.removeBreakpoints(breakpoints);
-                return `Breakpoint removed from ${filePath}:${line}`;
+                return `Breakpoint removed from ${fileFullPath}:${line}`;
             } else {
-                return `No breakpoint found at ${filePath}:${line}`;
+                return `No breakpoint found at ${fileFullPath}:${line}`;
             }
         } catch (error) {
             throw new Error(`Error removing breakpoint: ${error}`);
@@ -798,10 +686,10 @@ export class DebugMCPServer {
         }
     }
 
-    private async getDebugConfig(workspaceFolder: vscode.WorkspaceFolder, filePath: string, workingDirectory?: string, configurationName?: string): Promise<vscode.DebugConfiguration> {
+    private async getDebugConfig(workspaceFolder: vscode.WorkspaceFolder, fileFullPath: string, workingDirectory?: string, configurationName?: string): Promise<vscode.DebugConfiguration> {
        
         if (configurationName === AutoLaunchConfig) {
-            return this.createDefaultDebugConfig(filePath, workingDirectory, workspaceFolder);
+            return this.createDefaultDebugConfig(fileFullPath, workingDirectory, workspaceFolder);
         }
 
         // Look for launch.json in .vscode folder
@@ -823,7 +711,7 @@ export class DebugMCPServer {
                 if (namedConfig) {
                     return {
                         ...namedConfig,
-                        program: filePath, // Override program to our specific file
+                        program: fileFullPath, // Override program to our specific file
                         cwd: workingDirectory || namedConfig.cwd || workspaceFolder.uri.fsPath,
                         name: `DebugMCP Launch (${configurationName})`
                     };
@@ -833,18 +721,18 @@ export class DebugMCPServer {
         }
 
         // Fallback: always return a default configuration if nothing else matched
-        return this.createDefaultDebugConfig(filePath, workingDirectory, workspaceFolder);
+        return this.createDefaultDebugConfig(fileFullPath, workingDirectory, workspaceFolder);
     }
 
-    private createDefaultDebugConfig(filePath: string, workingDirectory: string | undefined, workspaceFolder: vscode.WorkspaceFolder): vscode.DebugConfiguration {
-        const detectedLanguage = this.detectLanguageFromFilePath(filePath);
+    private createDefaultDebugConfig(fileFullPath: string, workingDirectory: string | undefined, workspaceFolder: vscode.WorkspaceFolder): vscode.DebugConfiguration {
+        const detectedLanguage = this.detectLanguageFromFilePath(fileFullPath);
         
         const configs: { [key: string]: vscode.DebugConfiguration } = {
             python: {
                 type: 'python',
                 request: 'launch',
                 name: 'DebugMCP Python Launch',
-                program: filePath,
+                program: fileFullPath,
                 console: 'integratedTerminal',
                 cwd: workingDirectory || workspaceFolder.uri.fsPath,
                 env: {},
@@ -854,7 +742,7 @@ export class DebugMCPServer {
                 type: 'pwa-node',
                 request: 'launch',
                 name: 'DebugMCP Node.js Launch',
-                program: filePath,
+                program: fileFullPath,
                 console: 'integratedTerminal',
                 cwd: workingDirectory || workspaceFolder.uri.fsPath,
                 env: {},
@@ -864,7 +752,7 @@ export class DebugMCPServer {
                 type: 'java',
                 request: 'launch',
                 name: 'DebugMCP Java Launch',
-                mainClass: path.basename(filePath, path.extname(filePath)),
+                mainClass: path.basename(fileFullPath, path.extname(fileFullPath)),
                 console: 'integratedTerminal',
                 cwd: workingDirectory || workspaceFolder.uri.fsPath
             },
@@ -872,7 +760,7 @@ export class DebugMCPServer {
                 type: 'coreclr',
                 request: 'launch',
                 name: 'DebugMCP .NET Launch',
-                program: filePath,
+                program: fileFullPath,
                 console: 'integratedTerminal',
                 cwd: workingDirectory || workspaceFolder.uri.fsPath,
                 stopAtEntry: false
@@ -881,7 +769,7 @@ export class DebugMCPServer {
                 type: 'cppdbg',
                 request: 'launch',
                 name: 'DebugMCP C++ Launch',
-                program: filePath.replace(/\.(cpp|cc|c)$/, ''),
+                program: fileFullPath.replace(/\.(cpp|cc|c)$/, ''),
                 cwd: workingDirectory || workspaceFolder.uri.fsPath,
                 console: 'integratedTerminal'
             },
@@ -890,7 +778,7 @@ export class DebugMCPServer {
                 request: 'launch',
                 name: 'DebugMCP Go Launch',
                 mode: 'debug',
-                program: filePath,
+                program: fileFullPath,
                 cwd: workingDirectory || workspaceFolder.uri.fsPath
             }
         };
@@ -914,7 +802,7 @@ export class DebugMCPServer {
                     // Get the active editor
                     const activeEditor = vscode.window.activeTextEditor;
                     if (activeEditor) {
-                        state.filePath = activeEditor.document.fileName;
+                        state.fileFullPath = activeEditor.document.fileName;
                         state.fileName = activeEditor.document.fileName.split(/[/\\]/).pop() || null;
                         state.currentLine = activeEditor.selection.active.line + 1; // 1-based line number
                         state.currentLineContent = activeEditor.document.lineAt(activeEditor.selection.active.line).text.trim();
