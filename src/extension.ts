@@ -1,8 +1,5 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { DebugMCPServer } from './mcpServer';
+import { DebugMCPServer } from './DebugMCPServer';
 
 let mcpServer: DebugMCPServer | null = null;
 

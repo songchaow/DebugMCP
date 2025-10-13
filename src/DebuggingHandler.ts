@@ -1,0 +1,421 @@
+import * as vscode from 'vscode';
+import { IDebuggingExecutor } from './DebuggingExecutor';
+import { IConfigurationManager } from './ConfigurationManager';
+import { DebugState } from './DebugState';
+
+/**
+ * Interface for debugging handler operations
+ */
+export interface IDebuggingHandler {
+    startDebugging(args: { fileFullPath: string; workingDirectory?: string; configurationName?: string }): Promise<string>;
+    stopDebugging(): Promise<string>;
+    stepOver(args?: { steps?: number }): Promise<string>;
+    stepInto(): Promise<string>;
+    stepOut(): Promise<string>;
+    continue(): Promise<string>;
+    restart(): Promise<string>;
+    addBreakpoint(args: { fileFullPath: string; line: string }): Promise<string>;
+    removeBreakpoint(args: { fileFullPath: string; line: number }): Promise<string>;
+    listBreakpoints(): Promise<string>;
+    getVariables(args: { scope?: 'local' | 'global' | 'all' }): Promise<string>;
+    evaluateExpression(args: { expression: string }): Promise<string>;
+}
+
+/**
+ * Handles debugging operations using the executor and configuration manager
+ */
+export class DebuggingHandler implements IDebuggingHandler {
+    private readonly numNextLines: number = 3;
+
+    constructor(
+        private readonly executor: IDebuggingExecutor,
+        private readonly configManager: IConfigurationManager
+    ) {}
+
+    /**
+     * Start a debugging session
+     */
+    public async startDebugging(args: { 
+        fileFullPath: string; 
+        workingDirectory?: string; 
+        configurationName?: string; 
+    }): Promise<string> {
+        const { fileFullPath, workingDirectory } = args;
+        
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                throw new Error('No workspace folder found');
+            }
+            
+            let selectedConfigName = await this.configManager.promptForConfiguration(workspaceFolder);
+            
+            // Get debug configuration from launch.json or create default
+            const debugConfig = await this.configManager.getDebugConfig(
+                workspaceFolder, 
+                fileFullPath, 
+                workingDirectory, 
+                selectedConfigName
+            );
+
+            const started = await this.executor.startDebugging(workspaceFolder, debugConfig);
+            if (started) {
+                const configInfo = selectedConfigName ? ` using configuration '${selectedConfigName}'` : ' with default configuration';
+                return `Debug session started successfully for: ${fileFullPath}${configInfo}`;
+            } else {
+                throw new Error('Failed to start debug session. Make sure the appropriate language extension is installed.');
+            }
+        } catch (error) {
+            throw new Error(`Error starting debug session: ${error}`);
+        }
+    }
+
+    /**
+     * Stop the current debugging session
+     */
+    public async stopDebugging(): Promise<string> {
+        try {
+            if (!this.executor.hasActiveSession()) {
+                return 'No active debug session to stop';
+            }
+
+            const breakpointCount = this.executor.getBreakpoints().length;
+            await this.executor.stopDebugging();
+
+            // Clear breakpoints option
+            if (breakpointCount > 0) {
+                this.executor.clearAllBreakpoints();
+                return `Debug session stopped successfully. Cleared ${breakpointCount} breakpoint(s).`;
+            } else {
+                return 'Debug session stopped successfully';
+            }
+        } catch (error) {
+            throw new Error(`Error stopping debug session: ${error}`);
+        }
+    }
+
+    /**
+     * Execute step over command(s)
+     */
+    public async stepOver(args?: { steps?: number }): Promise<string> {
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session');
+            }
+
+            const steps = args?.steps || 1;
+            
+            // Execute step over command the specified number of times
+            for (let i = 0; i < steps; i++) {
+                await this.executor.stepOver();
+            }
+            
+            // Get the current debug state
+            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
+            
+            // Format the debug state as a string
+            return this.formatDebugState(debugState);
+        } catch (error) {
+            throw new Error(`Error executing step over: ${error}`);
+        }
+    }
+
+    /**
+     * Execute step into command
+     */
+    public async stepInto(): Promise<string> {
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session');
+            }
+
+            await this.executor.stepInto();
+            
+            // Get the current debug state
+            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
+            
+            // Format the debug state as a string
+            return this.formatDebugState(debugState);
+        } catch (error) {
+            throw new Error(`Error executing step into: ${error}`);
+        }
+    }
+
+    /**
+     * Execute step out command
+     */
+    public async stepOut(): Promise<string> {
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session');
+            }
+
+            await this.executor.stepOut();
+            
+            // Get the current debug state
+            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
+            
+            // Format the debug state as a string
+            return this.formatDebugState(debugState);
+        } catch (error) {
+            throw new Error(`Error executing step out: ${error}`);
+        }
+    }
+
+    /**
+     * Continue execution
+     */
+    public async continue(): Promise<string> {
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session');
+            }
+
+            await this.executor.continue();
+            
+            // Get the current debug state
+            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
+            
+            // Format the debug state as a string
+            return this.formatDebugState(debugState);
+        } catch (error) {
+            throw new Error(`Error executing continue: ${error}`);
+        }
+    }
+
+    /**
+     * Restart the debugging session
+     */
+    public async restart(): Promise<string> {
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session to restart');
+            }
+
+            await this.executor.restart();
+            return 'Debug session restarted successfully';
+        } catch (error) {
+            throw new Error(`Error restarting debug session: ${error}`);
+        }
+    }
+
+    /**
+     * Add a breakpoint at specified location
+     */
+    public async addBreakpoint(args: { fileFullPath: string; line: string }): Promise<string> {
+        const { fileFullPath, line } = args;
+        
+        try {
+            // Find the line number containing the line content
+            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(fileFullPath));
+            const text = document.getText();
+            const lines = text.split(/\r?\n/);
+            let lineNumber = -1;
+            
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes(line)) {
+                    lineNumber = i + 1;
+                    break;
+                }
+            }
+            
+            if (lineNumber === -1) {
+                throw new Error(`Could not find line containing: ${line}`);
+            }
+            
+            const uri = vscode.Uri.file(fileFullPath);
+            await this.executor.addBreakpoint(uri, lineNumber);
+            
+            return `Breakpoint added at ${fileFullPath}:${lineNumber}`;
+        } catch (error) {
+            throw new Error(`Error adding breakpoint: ${error}`);
+        }
+    }
+
+    /**
+     * Remove a breakpoint from specified location
+     */
+    public async removeBreakpoint(args: { fileFullPath: string; line: number }): Promise<string> {
+        const { fileFullPath, line } = args;
+        
+        try {
+            const uri = vscode.Uri.file(fileFullPath);
+            
+            // Check if breakpoint exists at this location
+            const breakpoints = this.executor.getBreakpoints();
+            const existingBreakpoint = breakpoints.find(bp => {
+                if (bp instanceof vscode.SourceBreakpoint) {
+                    return bp.location.uri.toString() === uri.toString() && 
+                           bp.location.range.start.line === line - 1;
+                }
+                return false;
+            });
+            
+            if (!existingBreakpoint) {
+                return `No breakpoint found at ${fileFullPath}:${line}`;
+            }
+            
+            await this.executor.removeBreakpoint(uri, line);
+            return `Breakpoint removed from ${fileFullPath}:${line}`;
+        } catch (error) {
+            throw new Error(`Error removing breakpoint: ${error}`);
+        }
+    }
+
+    /**
+     * List all active breakpoints
+     */
+    public async listBreakpoints(): Promise<string> {
+        try {
+            const breakpoints = this.executor.getBreakpoints();
+            
+            if (breakpoints.length === 0) {
+                return 'No breakpoints currently set';
+            }
+
+            let breakpointList = 'Active Breakpoints:\n';
+            breakpoints.forEach((bp, index) => {
+                if (bp instanceof vscode.SourceBreakpoint) {
+                    const fileName = bp.location.uri.fsPath.split(/[/\\]/).pop();
+                    const line = bp.location.range.start.line + 1;
+                    breakpointList += `${index + 1}. ${fileName}:${line}\n`;
+                } else if (bp instanceof vscode.FunctionBreakpoint) {
+                    breakpointList += `${index + 1}. Function: ${bp.functionName}\n`;
+                }
+            });
+
+            return breakpointList;
+        } catch (error) {
+            throw new Error(`Error listing breakpoints: ${error}`);
+        }
+    }
+
+    /**
+     * Get variables from current debug context
+     */
+    public async getVariables(args: { scope?: 'local' | 'global' | 'all' }): Promise<string> {
+        const { scope = 'all' } = args;
+        
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session. Start debugging first.');
+            }
+
+            const activeStackItem = vscode.debug.activeStackItem;
+            if (!activeStackItem || !('frameId' in activeStackItem)) {
+                throw new Error('No active stack frame. Make sure execution is paused at a breakpoint.');
+            }
+
+            const variablesData = await this.executor.getVariables(activeStackItem.frameId, scope);
+            
+            if (!variablesData.scopes || variablesData.scopes.length === 0) {
+                return 'No variable scopes available at current execution point.';
+            }
+
+            let variablesInfo = 'Variables:\n==========\n\n';
+
+            for (const scopeItem of variablesData.scopes) {
+                variablesInfo += `${scopeItem.name}:\n`;
+                
+                if (scopeItem.error) {
+                    variablesInfo += `  Error retrieving variables: ${scopeItem.error}\n`;
+                } else if (scopeItem.variables && scopeItem.variables.length > 0) {
+                    for (const variable of scopeItem.variables) {
+                        variablesInfo += `  ${variable.name}: ${variable.value}`;
+                        if (variable.type) {
+                            variablesInfo += ` (${variable.type})`;
+                        }
+                        variablesInfo += '\n';
+                    }
+                } else {
+                    variablesInfo += '  No variables in this scope\n';
+                }
+                
+                variablesInfo += '\n';
+            }
+
+            return variablesInfo;
+        } catch (error) {
+            throw new Error(`Error getting variables: ${error}`);
+        }
+    }
+
+    /**
+     * Evaluate an expression in current debug context
+     */
+    public async evaluateExpression(args: { expression: string }): Promise<string> {
+        const { expression } = args;
+        
+        try {
+            if (!this.executor.hasActiveSession()) {
+                throw new Error('No active debug session. Start debugging first.');
+            }
+
+            const activeStackItem = vscode.debug.activeStackItem;
+            if (!activeStackItem || !('frameId' in activeStackItem)) {
+                throw new Error('No active stack frame. Make sure execution is paused at a breakpoint.');
+            }
+
+            const response = await this.executor.evaluateExpression(expression, activeStackItem.frameId);
+
+            if (response && response.result !== undefined) {
+                let resultText = `Expression: ${expression}\n`;
+                resultText += `Result: ${response.result}`;
+                if (response.type) {
+                    resultText += ` (${response.type})`;
+                }
+
+                return resultText;
+            } else {
+                throw new Error('Failed to evaluate expression');
+            }
+        } catch (error) {
+            throw new Error(`Error evaluating expression: ${error}`);
+        }
+    }
+
+    /**
+     * Format debug state as a readable string
+     */
+    private formatDebugState(state: DebugState): string {
+        if (!state.sessionActive) {
+            return 'Debug session is not active';
+        }
+
+        let output = 'Debug State:\n==========\n\n';
+        
+        if (state.hasLocationInfo()) {
+            output += `Frame ID: ${state.frameId}\n`;
+            output += `File: ${state.fileName}\n`;
+            output += `Line: ${state.currentLine}\n`;
+            output += `${state.currentLine}: ${state.currentLineContent}\n`;
+            
+            // Show next few lines for context
+            if (state.nextLines && state.nextLines.length > 0) {
+                output += '\nNext lines:\n';
+                state.nextLines.forEach((line, index) => {
+                    const lineNumber = (state.currentLine || 0) + index + 1;
+                    output += `   ${lineNumber}: ${line}\n`;
+                });
+            }
+        } else {
+            output += 'No location information available\n';
+        }
+                
+        return output;
+    }
+    
+    /**
+     * Get current debug state
+     */
+    public async getCurrentDebugState(): Promise<DebugState> {
+        return await this.executor.getCurrentDebugState(this.numNextLines);
+    }
+
+    /**
+     * Check if debugging session is active
+     */
+    public isDebuggingActive(): boolean {
+        return this.executor.hasActiveSession();
+    }
+}
