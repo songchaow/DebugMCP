@@ -210,23 +210,31 @@ export class DebuggingHandler implements IDebuggingHandler {
             const document = await vscode.workspace.openTextDocument(vscode.Uri.file(fileFullPath));
             const text = document.getText();
             const lines = text.split(/\r?\n/);
-            let lineNumber = -1;
+            const matchingLineNumbers: number[] = [];
             
             for (let i = 0; i < lines.length; i++) {
                 if (lines[i].includes(line)) {
-                    lineNumber = i + 1;
-                    break;
+                    matchingLineNumbers.push(i + 1); // Convert to 1-based line numbers
                 }
             }
             
-            if (lineNumber === -1) {
-                throw new Error(`Could not find line containing: ${line}`);
+            if (matchingLineNumbers.length === 0) {
+                throw new Error(`Could not find any lines containing: ${line}`);
             }
             
             const uri = vscode.Uri.file(fileFullPath);
-            await this.executor.addBreakpoint(uri, lineNumber);
             
-            return `Breakpoint added at ${fileFullPath}:${lineNumber}`;
+            // Add breakpoints to all matching lines
+            for (const lineNumber of matchingLineNumbers) {
+                await this.executor.addBreakpoint(uri, lineNumber);
+            }
+            
+            if (matchingLineNumbers.length === 1) {
+                return `Breakpoint added at ${fileFullPath}:${matchingLineNumbers[0]}`;
+            } else {
+                const linesList = matchingLineNumbers.join(', ');
+                return `Breakpoints added at ${matchingLineNumbers.length} locations in ${fileFullPath}: lines ${linesList}`;
+            }
         } catch (error) {
             throw new Error(`Error adding breakpoint: ${error}`);
         }

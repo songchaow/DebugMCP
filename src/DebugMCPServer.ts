@@ -59,10 +59,10 @@ export class DebugMCPServer {
      * Setup MCP tools that delegate to the debugging handler
      */
     private setupTools() {
-        // Start debugging tool (supports multiple languages)
+        // Start debugging tool
         this.server.addTool({
             name: 'start_debugging',
-            description: 'Start a debug session for a source code file. Before using this tool, make sure to read debugmcp://docs/debug_instructions for step-by-step instructions.',
+            description: '⚠️ CRITICAL: First read debugmcp://docs/debug_instructions resource! Start a debug session for a source code file - requires breakpoints to be set first!',
             parameters: z.object({
                 fileFullPath: z.string().describe('Full path to the source code file to debug'),
                 workingDirectory: z.string().optional().describe('Working directory for the debug session (optional)'),
