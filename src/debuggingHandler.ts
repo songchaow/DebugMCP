@@ -9,7 +9,7 @@ import { DebugState } from './DebugState';
 export interface IDebuggingHandler {
     handleStartDebugging(args: { fileFullPath: string; workingDirectory?: string; configurationName?: string }): Promise<string>;
     handleStopDebugging(): Promise<string>;
-    handleStepOver(args?: { steps?: number }): Promise<string>;
+    handleStepOver(): Promise<string>;
     handleStepInto(): Promise<string>;
     handleStepOut(): Promise<string>;
     handleContinue(): Promise<string>;
@@ -105,12 +105,7 @@ export class DebuggingHandler implements IDebuggingHandler {
                 throw new Error('No active debug session');
             }
 
-            const steps = args?.steps || 1;
-            
-            // Execute step over command the specified number of times
-            for (let i = 0; i < steps; i++) {
-                await this.executor.stepOver();
-            }
+            await this.executor.stepOver();
             
             // Get the current debug state
             const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
@@ -413,7 +408,7 @@ export class DebuggingHandler implements IDebuggingHandler {
                 });
             }
         } else {
-            output += 'No location information available. The session might have ended - consider to start a new debug session.\n';
+            output += 'No location information available. The session might have ended\n';
         }
                 
         return output;

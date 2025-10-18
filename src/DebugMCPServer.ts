@@ -84,12 +84,9 @@ export class DebugMCPServer {
         // Step over tool
         this.server.addTool({
             name: 'step_over',
-            description: 'Execute the next line(s) of code (step over function calls)',
-            parameters: z.object({
-                steps: z.number().max(3).optional().default(1).describe('Number of steps to step over, default 1, maximum 3.'),
-            }),
-            execute: async (args: { steps?: number }) => {
-                return await this.debuggingHandler.handleStepOver(args);
+            description: 'Execute the next line of code (step over function calls)',
+            execute: async () => {
+                return await this.debuggingHandler.handleStepOver();
             },
         });
 
@@ -141,6 +138,8 @@ export class DebugMCPServer {
                 return await this.debuggingHandler.handleAddBreakpoint(args);
             },
         });
+
+        // TODO clear breakpoints tool
 
         // Remove breakpoint tool
         this.server.addTool({
