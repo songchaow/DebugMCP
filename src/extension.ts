@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 import { DebugMCPServer } from './debugMCPServer';
-import { PopupManager } from './utils/popupManager';
+import { AgentConfigurationManager } from './utils/agentConfigurationManager';
 
 let mcpServer: DebugMCPServer | null = null;
-let popupManager: PopupManager | null = null;
+let agentConfigManager: AgentConfigurationManager | null = null;
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('DebugMCP extension is now active!');
 
-    // Initialize Popup Manager
-    popupManager = new PopupManager(context);
+    // Initialize Agent Configuration Manager
+    agentConfigManager = new AgentConfigurationManager(context);
 
     // Initialize MCP Server
     try {
@@ -31,8 +31,8 @@ export async function activate(context: vscode.ExtensionContext) {
     // Show post-install popup if needed (with slight delay to allow VS Code to fully load)
     setTimeout(async () => {
         try {
-            if (popupManager && await popupManager.shouldShowPopup()) {
-                await popupManager.showAgentSelectionPopup();
+            if (agentConfigManager && await agentConfigManager.shouldShowPopup()) {
+                await agentConfigManager.showAgentSelectionPopup();
             }
         } catch (error) {
             console.error('Error showing post-install popup:', error);
@@ -50,8 +50,8 @@ function registerCommands(context: vscode.ExtensionContext) {
     const configureAgentsCommand = vscode.commands.registerCommand(
         'debugmcp.configureAgents',
         async () => {
-            if (popupManager) {
-                await popupManager.showManualConfiguration();
+            if (agentConfigManager) {
+                await agentConfigManager.showManualConfiguration();
             }
         }
     );
@@ -60,8 +60,8 @@ function registerCommands(context: vscode.ExtensionContext) {
     const showPopupCommand = vscode.commands.registerCommand(
         'debugmcp.showAgentSelectionPopup',
         async () => {
-            if (popupManager) {
-                await popupManager.showAgentSelectionPopup();
+            if (agentConfigManager) {
+                await agentConfigManager.showAgentSelectionPopup();
             }
         }
     );
@@ -70,8 +70,8 @@ function registerCommands(context: vscode.ExtensionContext) {
     const resetPopupCommand = vscode.commands.registerCommand(
         'debugmcp.resetPopupState',
         async () => {
-            if (popupManager) {
-                await popupManager.resetPopupState();
+            if (agentConfigManager) {
+                await agentConfigManager.resetPopupState();
                 vscode.window.showInformationMessage('DebugMCP popup state has been reset.');
             }
         }

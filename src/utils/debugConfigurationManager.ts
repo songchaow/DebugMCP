@@ -94,24 +94,23 @@ export class DebugConfigurationManager implements IDebugConfigurationManager {
                 console.log('Could not read or parse launch.json:', launchJsonError);
             }
             
-            if (configurations.length === 0) {
-                // No configurations available, will use default
-                return undefined;
-            }
-            
-            // Create configuration options for user selection
+            // Always show popup now - even when no configurations exist
             const configOptions: vscode.QuickPickItem[] = [
                 {
                     label: DebugConfigurationManager.AUTO_LAUNCH_CONFIG,
                     description: 'Use auto-detected default configuration',
                     detail: 'DebugMCP will create a default configuration based on file extension'
-                },
-                ...configurations.map(config => ({
+                }
+            ];
+            
+            // Add existing configurations if any
+            if (configurations.length > 0) {
+                configOptions.push(...configurations.map(config => ({
                     label: config.name || 'Unnamed Configuration',
                     description: config.type ? `Type: ${config.type}` : '',
                     detail: config.request ? `Request: ${config.request}` : ''
-                }))
-            ];
+                })));
+            }
             
             // Show quick pick to user
             const selected = await vscode.window.showQuickPick(configOptions, {

@@ -2,7 +2,7 @@
   "name": "debugmcpextension",
   "displayName": "DebugMCP",
   "description": "A VSCode extension for debugging projects with enhanced MCP debugging capabilities for all programming languages",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.104.0"
   },
@@ -12,30 +12,17 @@
     "AI",
     "Other"
   ],
-  "keywords": [
-    "debugging",
-    "mcp",
-    "ai",
-    "agents",
-    "modelcontextprotocol",
-    "fastmcp"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/DebugMCP.git"
   },
   "activationEvents": [
-    "onDebug",
-    "onStartupFinished"
+    "onStartupFinished",
+    "onDebug"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "debugmcp.configureAgents",
-        "title": "Configure AI Agents",
-        "category": "DebugMCP"
-      },
       {
         "command": "debugmcp.showAgentSelectionPopup",
         "title": "Show Agent Selection Popup",
@@ -49,10 +36,6 @@
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "debugmcp.configureAgents",
-          "when": "true"
-        },
         {
           "command": "debugmcp.showAgentSelectionPopup",
           "when": "true"

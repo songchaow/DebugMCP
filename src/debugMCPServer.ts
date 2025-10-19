@@ -254,17 +254,62 @@ export class DebugMCPServer {
     }
 
     /**
+     * Check if the server is already running
+     */
+    private async isServerRunning(): Promise<boolean> {
+        return new Promise<boolean>((resolve) => {
+            const http = require('http');
+            
+            const request = http.request({
+                hostname: 'localhost',
+                port: this.port,
+                path: '/',
+                method: 'GET',
+                timeout: 1000
+            }, (response: any) => {
+                resolve(true); // Server is responding
+            });
+            
+            request.on('error', () => {
+                resolve(false); // Server is not running
+            });
+            
+            request.on('timeout', () => {
+                request.destroy();
+                resolve(false); // Server is not responding
+            });
+            
+            request.end();
+        });
+    }
+
+    /**
      * Start the MCP server
      */
-    async start() {
-        await this.server.start({
-            transportType: 'httpStream',
-            httpStream: {
-                port: this.port,
-            },
-        });
+    async start(): Promise<void> {
+        // First check if server is already running
+        const isRunning = await this.isServerRunning();
+        if (isRunning) {
+            console.log(`DebugMCP server is already running on port ${this.port}`);
+            return;
+        }
+        
+        try {
+            console.log(`Starting DebugMCP server on port ${this.port}...`);
+            
+            await this.server.start({
+                transportType: 'httpStream',
+                httpStream: {
+                    port: this.port,
+                },
+            });
 
-        console.log(`DebugMCP FastMCP server started on port ${this.port}`);
+            console.log(`DebugMCP FastMCP server started successfully on port ${this.port}`);
+            
+        } catch (error) {
+            console.error(`Failed to start DebugMCP server:`, error);
+            throw new Error(`Failed to start DebugMCP server: ${error}`);
+        }
     }
 
     /**

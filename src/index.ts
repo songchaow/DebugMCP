@@ -6,4 +6,3 @@ export { DebuggingHandler, IDebuggingHandler } from './debuggingHandler';
 
 // Export agent configuration classes
 export { AgentConfigurationManager, AgentInfo, MCPServerConfig } from './utils/agentConfigurationManager';
-export { PopupManager } from './utils/popupManager';
