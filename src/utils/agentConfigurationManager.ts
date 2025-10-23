@@ -100,32 +100,55 @@ export class AgentConfigurationManager {
     }
 
     /**
+     * Get cross-platform configuration base path
+     */
+    private getConfigBasePath(): string {
+        const platform = os.platform();
+        const userHome = os.homedir();
+        
+        switch (platform) {
+            case 'win32': // Windows
+                return process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming');
+            case 'darwin': // MacOS
+                return path.join(userHome, 'Library', 'Application Support');
+            case 'linux': // Linux
+                return process.env.XDG_CONFIG_HOME || path.join(userHome, '.config');
+            default:
+                // Fallback to Windows-style for unknown platforms
+                console.warn(`Unknown platform: ${platform}, using Windows config path`);
+                return process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming');
+        }
+    }
+
+    /**
      * Get list of supported agents
      */
     private async getSupportedAgents(): Promise<AgentInfo[]> {
-        const userHome = os.homedir();
-        const appDataPath = process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming');
+        const configBasePath = this.getConfigBasePath();
+        const platform = os.platform();
+        
+        console.log(`Detected platform: ${platform}, using config base path: ${configBasePath}`);
         
         const agents: AgentInfo[] = [
             {
                 id: 'cline',
                 name: 'cline',
                 displayName: 'Cline',
-                configPath: path.join(appDataPath, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
+                configPath: path.join(configBasePath, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
                 mcpServerFieldName: 'mcpServers'
             },
             {
                 id: 'copilot',
                 name: 'copilot',
                 displayName: 'GitHub Copilot',
-                configPath: path.join(appDataPath, 'Code', 'User', 'mcp.json'),
+                configPath: path.join(configBasePath, 'Code', 'User', 'mcp.json'),
                 mcpServerFieldName: 'servers'
             },
             {
                 id: 'cursor',
                 name: 'cursor',
                 displayName: 'Cursor',
-                configPath: path.join(appDataPath, 'Cursor', 'User', 'globalStorage', 'cursor.mcp', 'settings', 'mcp_settings.json'),
+                configPath: path.join(configBasePath, 'Cursor', 'User', 'globalStorage', 'cursor.mcp', 'settings', 'mcp_settings.json'),
                 mcpServerFieldName: 'mcpServers'
             }
         ];
