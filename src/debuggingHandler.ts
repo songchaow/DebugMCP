@@ -28,11 +28,15 @@ export interface IDebuggingHandler {
 export class DebuggingHandler implements IDebuggingHandler {
     private readonly numNextLines: number = 3;
     private readonly executionDelay: number = 300; // ms to wait for debugger updates
+    private readonly timeoutInSeconds: number;
 
     constructor(
         private readonly executor: IDebuggingExecutor,
-        private readonly configManager: IDebugConfigurationManager
-    ) {}
+        private readonly configManager: IDebugConfigurationManager,
+        timeoutInSeconds: number
+    ) {
+        this.timeoutInSeconds = timeoutInSeconds;
+    }
 
     /**
      * Start a debugging session
@@ -468,14 +472,14 @@ export class DebuggingHandler implements IDebuggingHandler {
      */
     private async waitForActiveDebugSession(): Promise<boolean> {
         const baseDelay = 1000; // Start with 1 second
-        const maxDelay = 60000; // Cap at 1 minute (60 seconds)
-        const maxTotalTime = 60000; // Total timeout of 1 minute
+        const maxDelay = 30000; // Cap at 30 seconds
         
         const startTime = Date.now();
         let attempt = 0;
         
-        while (Date.now() - startTime < maxTotalTime) {
+        while (Date.now() - startTime < this.timeoutInSeconds * 1000) {
             if (await this.executor.hasActiveSession()) {
+                logger.info('Debug session is now active!');
                 return true;
             }
             

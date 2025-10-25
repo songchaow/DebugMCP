@@ -12,13 +12,21 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.logSystemInfo();
     logger.logEnvironment();
 
+    const config = vscode.workspace.getConfiguration('debugmcp');
+    const timeoutInSeconds = config.get<number>('timeoutInSeconds', 180);
+    const serverPort = config.get<number>('serverPort', 3001);
+
+    logger.info(`Using timeoutInSeconds: ${timeoutInSeconds} seconds`);
+    logger.info(`Using serverPort: ${serverPort}`);
+
     // Initialize Agent Configuration Manager
-    agentConfigManager = new AgentConfigurationManager(context);
+    agentConfigManager = new AgentConfigurationManager(context, timeoutInSeconds, serverPort);
 
     // Initialize MCP Server
     try {
         logger.info('Starting MCP server initialization...');
-        mcpServer = new DebugMCPServer();
+        
+        mcpServer = new DebugMCPServer(serverPort, timeoutInSeconds);
         await mcpServer.initialize();
         await mcpServer.start();
         
@@ -138,9 +146,12 @@ function registerCommands(context: vscode.ExtensionContext) {
                     return new Promise((resolve, reject) => {
                         const http = require('http');
                         
+                        const config = vscode.workspace.getConfiguration('debugmcp');
+                        const serverPort = config.get<number>('serverPort', 3001);
+                        
                         const request = http.request({
                             hostname: 'localhost',
-                            port: 3001,
+                            port: serverPort,
                             path: '/sse',  // FastMCP uses /sse endpoint for Server-Sent Events
                             method: 'GET',
                             headers: {

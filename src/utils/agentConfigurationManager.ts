@@ -23,17 +23,14 @@ export class AgentConfigurationManager {
     private context: vscode.ExtensionContext;
     private readonly POPUP_SHOWN_KEY = 'debugmcp.popupShown';
     private readonly SKIP_POPUP_KEY = 'debugmcp.skipPopup';
+    private readonly timeoutInSeconds: number;
+    private readonly serverPort: number;
     
-    private static readonly DEBUGMCP_CONFIG: MCPServerConfig = {
-        autoApprove: [],
-        disabled: false,
-        timeout: 120,
-        type: "sse",
-        url: "http://localhost:3001/sse"
-    };
 
-    constructor(context?: vscode.ExtensionContext) {
-        this.context = context!;
+    constructor(context: vscode.ExtensionContext, timeoutInSeconds: number, serverPort: number) {
+        this.context = context;
+        this.timeoutInSeconds = timeoutInSeconds;
+        this.serverPort = serverPort;
     }
 
     /**
@@ -157,6 +154,19 @@ export class AgentConfigurationManager {
     }
 
     /**
+     * Get DebugMCP server configuration with current port and timeout settings
+     */
+    private getDebugMCPConfig(): MCPServerConfig {
+        return {
+            autoApprove: [],
+            disabled: false,
+            timeout: this.timeoutInSeconds,
+            type: "sse",
+            url: `http://localhost:${this.serverPort}/sse`
+        };
+    }
+
+    /**
      * Add DebugMCP server configuration to the specified agent's config
      */
     private async addDebugMCPToAgent(agent: AgentInfo): Promise<boolean> {
@@ -186,8 +196,8 @@ export class AgentConfigurationManager {
                 config[fieldName] = {};
             }
 
-            // Add or update DebugMCP configuration
-            config[fieldName].debugmcp = AgentConfigurationManager.DEBUGMCP_CONFIG;
+            // Add or update DebugMCP configuration with current settings
+            config[fieldName].debugmcp = this.getDebugMCPConfig();
 
             // Write the updated config back to file
             await fs.promises.writeFile(

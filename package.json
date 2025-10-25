@@ -2,7 +2,7 @@
   "name": "debugmcpextension",
   "displayName": "DebugMCP",
   "description": "A VSCode extension for debugging projects with enhanced MCP debugging capabilities for all programming languages",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.104.0"
   },
@@ -71,6 +71,16 @@
           "type": "boolean",
           "default": false,
           "description": "Show developer/testing commands in the command palette"
+        },
+        "debugmcp.timeoutInSeconds": {
+          "type": "number",
+          "default": 180,
+          "description": "Timeout in seconds"
+        },
+        "debugmcp.serverPort": {
+          "type": "number",
+          "default": 3001,
+          "description": "Port number for the DebugMCP server"
         }
       }
     }

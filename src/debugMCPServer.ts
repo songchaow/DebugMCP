@@ -32,15 +32,16 @@ async function initializeFastMCP() {
  */
 export class DebugMCPServer {
     private server: any;
-    private port: number = 3001;
+    private port: number;
     private initialized: boolean = false;
     private debuggingHandler: IDebuggingHandler;
 
-    constructor() {
+    constructor(port: number, timeoutInSeconds: number) {
         // Initialize the debugging components with dependency injection
         const executor = new DebuggingExecutor();
         const configManager = new ConfigurationManager();
-        this.debuggingHandler = new DebuggingHandler(executor, configManager);
+        this.debuggingHandler = new DebuggingHandler(executor, configManager, timeoutInSeconds);
+        this.port = port;
     }
 
     /**
