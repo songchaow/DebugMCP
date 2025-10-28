@@ -122,16 +122,16 @@ export class DebuggingHandler implements IDebuggingHandler {
                 throw new Error('Debug session is not ready. Please wait for initialization to complete.');
             }
 
+            // Get the state before executing the command
+            const beforeState = await this.executor.getCurrentDebugState(this.numNextLines);
+
             await this.executor.stepOver();
             
-            // Wait for debugger to update position
-            await new Promise(resolve => setTimeout(resolve, this.executionDelay));
+            // Wait for debugger state to change
+            const afterState = await this.waitForStateChange(beforeState);
 
-            // Get the current debug state
-            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
-            
             // Format the debug state as a string
-            return this.formatDebugState(debugState);
+            return this.formatDebugState(afterState);
         } catch (error) {
             throw new Error(`Error executing step over: ${error}`);
         }
@@ -146,16 +146,16 @@ export class DebuggingHandler implements IDebuggingHandler {
                 throw new Error('Debug session is not ready. Please wait for initialization to complete.');
             }
 
+            // Get the state before executing the command
+            const beforeState = await this.executor.getCurrentDebugState(this.numNextLines);
+
             await this.executor.stepInto();
             
-            // Wait for debugger to update position
-            await new Promise(resolve => setTimeout(resolve, this.executionDelay));
-            
-            // Get the current debug state
-            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
+            // Wait for debugger state to change
+            const afterState = await this.waitForStateChange(beforeState);
             
             // Format the debug state as a string
-            return this.formatDebugState(debugState);
+            return this.formatDebugState(afterState);
         } catch (error) {
             throw new Error(`Error executing step into: ${error}`);
         }
@@ -170,16 +170,16 @@ export class DebuggingHandler implements IDebuggingHandler {
                 throw new Error('Debug session is not ready. Please wait for initialization to complete.');
             }
 
+            // Get the state before executing the command
+            const beforeState = await this.executor.getCurrentDebugState(this.numNextLines);
+
             await this.executor.stepOut();
             
-            // Wait for debugger to update position
-            await new Promise(resolve => setTimeout(resolve, this.executionDelay));
-            
-            // Get the current debug state
-            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
+            // Wait for debugger state to change
+            const afterState = await this.waitForStateChange(beforeState);
             
             // Format the debug state as a string
-            return this.formatDebugState(debugState);
+            return this.formatDebugState(afterState);
         } catch (error) {
             throw new Error(`Error executing step out: ${error}`);
         }
@@ -194,20 +194,16 @@ export class DebuggingHandler implements IDebuggingHandler {
                 throw new Error('Debug session is not ready. Please wait for initialization to complete.');
             }
 
+            // Get the state before executing the command
+            const beforeState = await this.executor.getCurrentDebugState(this.numNextLines);
+
             await this.executor.continue();
             
-            // Wait for debugger to update position
-            await new Promise(resolve => setTimeout(resolve, this.executionDelay));
+            // Wait for debugger state to change
+            const afterState = await this.waitForStateChange(beforeState);
+            
+            let result = this.formatDebugState(afterState);
 
-            // Get the current debug state
-            const debugState = await this.executor.getCurrentDebugState(this.numNextLines);
-            
-            let result = this.formatDebugState(debugState);
-            
-            // If session ended (no location info), add drill-down reminder
-            if (!debugState.sessionActive || !debugState.hasLocationInfo()) {
-                result += '\n\n' + this.getRootCauseAnalysisCheckpointMessage();
-            }
             
             return result;
         } catch (error) {
@@ -472,7 +468,7 @@ export class DebuggingHandler implements IDebuggingHandler {
      */
     private async waitForActiveDebugSession(): Promise<boolean> {
         const baseDelay = 1000; // Start with 1 second
-        const maxDelay = 30000; // Cap at 30 seconds
+        const maxDelay = 10000; // Cap at 10 seconds
         
         const startTime = Date.now();
         let attempt = 0;
@@ -494,6 +490,90 @@ export class DebuggingHandler implements IDebuggingHandler {
         }
         
         return false; // Timeout reached
+    }
+
+    /**
+     * Wait for debugger state to change from the initial state using exponential backoff
+     */
+    private async waitForStateChange(beforeState: DebugState): Promise<DebugState> {
+        const baseDelay = 1000; // Start with 1 second
+        const maxDelay = 1000; // Cap at 1 second
+        const startTime = Date.now();
+        let attempt = 0;
+                
+        while (Date.now() - startTime < this.timeoutInSeconds * 1000) {
+            const currentState = await this.executor.getCurrentDebugState(this.numNextLines);
+            
+            if (this.hasStateChanged(beforeState, currentState)) {
+                return currentState;
+            }
+            
+            // If session ended, return immediately
+            if (!currentState.sessionActive) {
+                return currentState;
+            }
+            
+            logger.info(`[Attempt ${attempt + 1}] Waiting for debugger state to change...`);
+
+            // Calculate delay using exponential backoff with jitter (same as waitForActiveDebugSession)
+            const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+            const jitteredDelay = delay + Math.random() * 200; // Add up to 200ms jitter
+
+            await new Promise(resolve => setTimeout(resolve, jitteredDelay));
+            attempt++;
+        }
+        
+        // If we timeout, return the current state (might be unchanged)
+        logger.info('State change detection timed out, returning current state');
+        return await this.executor.getCurrentDebugState(this.numNextLines);
+    }
+
+    /**
+     * Determine if the debugger state has meaningfully changed
+     */
+    private hasStateChanged(beforeState: DebugState, afterState: DebugState): boolean {
+        if (beforeState.hasLocationInfo() && !afterState.hasLocationInfo() && afterState.sessionActive) {
+            return false;
+        }
+
+        // If session status changed, that's a meaningful change
+        if (beforeState.sessionActive !== afterState.sessionActive) {
+            return true;
+        }
+        
+        // If session is no longer active, that's a change
+        if (!afterState.sessionActive) {
+            return true;
+        }
+        
+        // If either state lacks location info, compare what we can
+        if (!beforeState.hasLocationInfo() || !afterState.hasLocationInfo()) {
+            // If one has location info and the other doesn't, that's a change
+            return beforeState.hasLocationInfo() !== afterState.hasLocationInfo();
+        }
+        
+        // Compare file paths - if we moved to a different file, that's a change
+        if (beforeState.fileFullPath !== afterState.fileFullPath) {
+            return true;
+        }
+        
+        // Compare line numbers - if we moved to a different line, that's a change
+        if (beforeState.currentLine !== afterState.currentLine) {
+            return true;
+        }
+        
+        // Compare frame names - if we moved to a different function/method, that's a change
+        if (beforeState.frameName !== afterState.frameName) {
+            return true;
+        }
+        
+        // Compare frame IDs - internal frame change
+        if (beforeState.frameId !== afterState.frameId) {
+            return true;
+        }
+        
+        // If we get here, no meaningful change was detected
+        return false;
     }
 
     /**

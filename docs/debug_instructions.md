@@ -118,7 +118,7 @@ Before stopping your debug session, ensure you can answer:
 ## Common Patterns:
 ❌ **COMMON MISTAKE:** Starting debugging without breakpoints
 ✅ **BEST PRACTICE:** Always set an initial breakpoint before starting debugging
-❌ **COMMON MISTAKE:** Set breakpoint in a method signature/definition line
+❌ **COMMON MISTAKE:** Set breakpoint in a method signature/definition line like 'def func()'
 ✅ **BEST PRACTICE:** Set breakpoint in the method body
 ❌ **COMMON MISTAKE:** Set breakpoint on commented line e.g '//', '#' and ect.
 ✅ **BEST PRACTICE:** Set breakpoint only on executable lines.
