@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+
 import * as assert from 'assert';
 import { DebugState } from '../debugState';
 import { DebuggingHandler } from '../debuggingHandler';

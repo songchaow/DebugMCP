@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+
 /**
  * Represents the current state of a debugging session
  */

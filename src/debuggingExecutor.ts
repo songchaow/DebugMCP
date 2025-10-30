@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+
 import * as vscode from 'vscode';
 import { DebugState } from './debugState';
 

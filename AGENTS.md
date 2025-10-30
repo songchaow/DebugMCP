@@ -1,7 +1,7 @@
 # Agent Guidelines for DebugMCP
 
 ## File Header
-Include the following header in each source file.
+Include the following header in each source file (adjust comment syntax as needed).
 `// Copyright (c) Microsoft Corporation.`
 
 ## Build/Lint/Test Commands

@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+
 import * as vscode from 'vscode';
 import { IDebugConfigurationManager } from './utils/debugConfigurationManager';
 import { DebugState } from './debugState';

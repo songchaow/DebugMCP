@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+
 // Export all debugging-related classes and interfaces
 export { DebugState } from './debugState';
 export { DebuggingExecutor, IDebuggingExecutor } from './debuggingExecutor';
