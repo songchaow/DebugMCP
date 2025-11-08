@@ -101,7 +101,7 @@ DebugMCP supports debugging for the following languages with their respective VS
 
 ### MCP Server Configuration
 
-The extension runs an MCP server automatically. It will pops up a message to auto-register the MCP server in your AI assistant.
+The extension runs an MCP server automatically. It will pop up a message to auto-register the MCP server in your AI assistant.
 
 ### Manual MCP Server Registration (Optional)
 
