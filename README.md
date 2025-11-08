@@ -1,31 +1,107 @@
-# DebugMCP - VSCode Extension with MCP Server Integration
+# DebugMCP - Empowering AI Agents with Multi-Language Debugging Capabilities
 
-A VSCode extension that provides multi-language debugging capabilities and automatically exposes itself as an MCP (Model Context Protocol) server for integration with AI assistants.
+A VSCode extension that provides comprehensive multi-language debugging capabilities and automatically exposes itself as an MCP (Model Context Protocol) server for seamless integration with AI assistants.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.104.0+-blue.svg)](https://code.visualstudio.com/)
+[![Version](https://img.shields.io/badge/version-1.0.1-green.svg)](https://github.com/microsoft/DebugMCP)
+
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Supported Languages](#supported-languages)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+DebugMCP bridges the gap between professional debugging and AI-assisted development by providing a powerful debugging interface that AI assistants can use to help you identify and fix issues in your code. DebugMCP enables AI assistants to perform sophisticated debugging operations on your behalf.
+
+> **📢 Beta Version Notice**: This is a beta version of DebugMCP maintained by [ozzafar@microsoft.com](mailto:ozzafar@microsoft.com). We welcome feedback and contributions to help improve this extension.
 
 ## Features
 
-### VSCode Extension Features
-- **Multi-Language Debugging Controls**: Start, stop, step over, step into, step out, continue, pause, and restart debugging sessions
-- **Breakpoint Management**: Add, remove, and list breakpoints  
-- **Variables Inspection**: View local, global, and all variable scopes during debugging
-- **Launch Configuration Support**: Uses existing launch.json configurations or creates appropriate defaults
+### 🔧 Tools
 
-### MCP Server Features
-- **Automatic Registration**: When the extension is installed, it automatically becomes available as an MCP server
-- **Full Debug Control**: All debugging operations are accessible via MCP tools
-- **Self-Context Management**: The server tracks the debugging state and consistently injects it to the agent context.
-- **No Additional Setup**: No need to clone repositories or install separate servers
+| Tool | Description | Parameters | Example Usage |
+|------|-------------|------------|---------------|
+| **start_debugging** | Start a debug session for a source code file | `filePath` (required)<br>`workingDirectory` (optional)<br>`configurationName` (optional) | Start debugging a Python script |
+| **stop_debugging** | Stop the current debug session | None | End the current debugging session |
+| **step_over** | Execute the next line (step over function calls) | None | Move to next line without entering functions |
+| **step_into** | Step into function calls | None | Enter function calls to debug them |
+| **step_out** | Step out of the current function | None | Exit current function and return to caller |
+| **continue_execution** | Continue until next breakpoint | None | Resume execution until hitting a breakpoint |
+| **restart_debugging** | Restart the current debug session | None | Restart debugging from the beginning |
+| **add_breakpoint** | Add a breakpoint at a specific line | `filePath` (required)<br>`line` (required) | Set breakpoint at line 25 of main.py |
+| **remove_breakpoint** | Remove a breakpoint from a specific line | `filePath` (required)<br>`line` (required) | Remove breakpoint from line 25 |
+| **list_breakpoints** | List all active breakpoints | None | Show all currently set breakpoints |
+| **get_debug_status** | Get current debug session status | None | Check if debugging session is active |
+| **get_variables** | Get variables and their values | `scope` (optional: 'local', 'global', 'all') | Inspect local variables |
+| **evaluate_expression** | Evaluate an expression in debug context | `expression` (required) | Evaluate `user.name` or `len(items)` |
+
+### 🎯 Debugging Best Practices
+
+DebugMCP follows systematic debugging practices for effective issue resolution:
+
+- **Start with Entry Points**: Begin debugging at function entry points or main execution paths
+- **Follow the Execution Flow**: Use step-by-step execution to understand code flow
+- **Root Cause Analysis**: Don't stop at symptoms - find the underlying cause
+
+### 🛡️ Security & Reliability
+- **Secure Communication**: All MCP communications use secure protocols
+- **State Validation**: Robust validation of debugging states and operations
+- **Error Recovery**: Automatic recovery from common debugging failures
 
 ## Installation
 
-1. Install the extension in VSCode, the extension will automatically activate itself as an MCP server.
-2. Configure the MCP server in your AI assistant's settings:
+### VSCode Marketplace
+1. Open VSCode
+2. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
+3. Search for "DebugMCP"
+4. Click Install
+5. The extension automatically activates and registers as an MCP server
 
-> **Note**: No additional debugging rule instructions are needed - the extension works out of the box.
+### Verification
+After installation, you should see:
+- DebugMCP extension in your installed extensions
+- MCP server automatically running on port 3001 (configurable)
+- Debug tools available to connected AI assistants
 
-> **Tip**: For efficient debugging sessions, it's recommended to enable auto-approval for all tools in your AI assistant to avoid interruptions during step-by-step debugging operations.
+> **💡 Tip**: Enable auto-approval for all debugmcp tools in your AI assistant to create seamless debugging workflows without constant approval interruptions.
 
-### Manaul MCP server registration
+## Quick Start
+
+1. **Install the extension** (see [Installation](#installation))
+2. **Open your project** in VSCode
+3. **Ask your AI to debug** - it can now set breakpoints, start debugging, and analyze your code!
+
+## Supported Languages
+
+DebugMCP supports debugging for the following languages with their respective VSCode extensions:
+
+| Language | Extension Required | File Extensions | Status |
+|----------|-------------------|-----------------|---------|
+| **Python** | [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python) | `.py` | ✅ Fully Supported |
+| **JavaScript/TypeScript** | Built-in / [JS Debugger](https://marketplace.visualstudio.com/items?itemName=ms-vscode.js-debug) | `.js`, `.ts`, `.jsx`, `.tsx` | ✅ Fully Supported |
+| **Java** | [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) | `.java` | ✅ Fully Supported |
+| **C/C++** | [C/C++](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools) | `.c`, `.cpp`, `.h`, `.hpp` | ✅ Fully Supported |
+| **Go** | [Go](https://marketplace.visualstudio.com/items?itemName=golang.Go) | `.go` | ✅ Fully Supported |
+| **Rust** | [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) | `.rs` | ✅ Fully Supported |
+| **PHP** | [PHP Debug](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug) | `.php` | ✅ Fully Supported |
+| **Ruby** | [Ruby](https://marketplace.visualstudio.com/items?itemName=rebornix.ruby) | `.rb` | ✅ Fully Supported |
+| **C#/.NET** | [C#](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csharp) | `.cs` | ⚠️ Coming Soon |
+
+## Configuration
+
+### MCP Server Configuration
+
+The extension runs an MCP server automatically. It will pops up a message to auto-register the MCP server in your AI assistant.
+
+### Manual MCP Server Registration (Optional)
 
 #### Cline
 Add to your Cline settings or `cline_mcp_settings.json`:
@@ -34,7 +110,8 @@ Add to your Cline settings or `cline_mcp_settings.json`:
   "mcpServers": {
     "debugmcp": {
       "transport": "sse",
-      "url": "http://localhost:3001/sse"
+      "url": "http://localhost:3001/sse",
+      "description": "DebugMCP - AI-powered debugging assistant"
     }
   }
 }
@@ -47,7 +124,8 @@ Add to your Copilot workspace settings (`.vscode/settings.json`):
   "github.copilot.mcp.servers": {
     "debugmcp": {
       "type": "sse",
-      "url": "http://localhost:3001/sse"
+      "url": "http://localhost:3001/sse",
+      "description": "DebugMCP - Multi-language debugging support"
     }
   }
 }
@@ -61,50 +139,41 @@ Add to Roo's MCP settings:
     "servers": {
       "debugmcp": {
         "type": "sse",
-        "url": "http://localhost:3001/sse"
+        "url": "http://localhost:3001/sse",
+        "description": "DebugMCP - Debugging tools for AI assistants"
       }
     }
   }
 }
 ```
 
-## MCP Server Usage
+### Extension Settings
 
-Once installed, the extension provides the following MCP tools:
+Configure DebugMCP behavior in VSCode settings:
 
-### Available Tools
+```json
+{
+  "debugmcp.serverPort": 3001,
+  "debugmcp.timeoutInSeconds": 180
+}
+```
 
-1. **start_debugging** - Start a debug session for a source code file
-   - Parameters: `filePath` (required), `workingDirectory` (optional), `configurationName` (optional)
-   - Supports: Python, Node.js/JavaScript/TypeScript, Java, C#/.NET, C/C++, Go, Rust, PHP, Ruby
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `debugmcp.serverPort` | `3001` | Port number for the MCP server |
+| `debugmcp.timeoutInSeconds` | `180` | Timeout for debugging operations |
 
-2. **stop_debugging** - Stop the current debug session
 
-3. **step_over** - Execute the next line of code (step over function calls)
+## Troubleshooting
 
-4. **step_into** - Step into function calls
+### Common Issues
 
-5. **step_out** - Step out of the current function
-
-6. **continue_execution** - Continue execution until next breakpoint
-
-7. **restart_debugging** - Restart the current debug session
-
-8. **add_breakpoint** - Add a breakpoint at a specific line
-   - Parameters: `filePath` (required), `line` (required)
-
-9. **remove_breakpoint** - Remove a breakpoint from a specific line
-    - Parameters: `filePath` (required), `line` (required)
-
-10. **list_breakpoints** - List all active breakpoints
-
-11. **get_debug_status** - Get the current debug session status
-
-12. **get_variables** - Get variables and their values at the current execution point
-    - Parameters: `scope` (optional: 'local', 'global', or 'all')
-
-13. **evaluate_expression** - Evaluate an expression in the current debug context (syntax depends on language)
-    - Parameters: `expression` (required)
+#### MCP Server Not Starting
+- **Symptom**: AI assistant can't connect to DebugMCP
+- **Solution**: 
+  - Check if port 3001 is available
+  - Restart VSCode
+  - Verify extension is installed and activated
 
 ## How It Works
 
@@ -112,7 +181,7 @@ Once installed, the extension provides the following MCP tools:
 The extension handles debug configurations intelligently:
 
 1. **Existing launch.json**: If a `.vscode/launch.json` file exists, it will:
-   - Search for a relevant configuarion
+   - Search for a relevant configuration
    - Use a specific configuration if found
 
 2. **Default Configuration**: If no launch.json exists or no relevant config, it creates an appropriate default configurations for each language based on file extension detection
@@ -124,7 +193,7 @@ The extension handles debug configurations intelligently:
   - **Python**: [Python extension](vscode:extension/ms-python.debugpy) for `.py` files
   - **JavaScript/TypeScript**: Built-in Node.js debugger or [JavaScript Debugger extension](vscode:extension/ms-vscode.js-debug)
   - **Java**: [Extension Pack for Java](vscode:extension/vscjava.vscode-java-pack)
-  - **C#/.NET [Currenly Unsupported]**: [C# extension](vscode:extension/ms-dotnettools.csharp)
+  - **C#/.NET**: [C# extension](vscode:extension/ms-dotnettools.csharp)
   - **C/C++**: [C/C++ extension](vscode:extension/ms-vscode.cpptools)
   - **Go**: [Go extension](vscode:extension/golang.go)
   - **Rust**: [rust-analyzer extension](vscode:extension/rust-lang.rust-analyzer)
@@ -144,15 +213,6 @@ This extension is designed to be minimal - it only starts the MCP server when ac
 </video>
 
 > Watch to see DebugMCP in action, showing the integration between the VSCode extension and an AI assistant using the MCP protocol.
-
-## Architecture
-
-The extension consists of several key components:
-
-1. **Main Extension** (`src/extension.ts`) - Handles VSCode integration and command registration
-2. **MCP Server** (`src/debugMCPServer.ts`) - Implements the MCP protocol with full debugging capabilities
-2. **Debugging Handler** (`src.debuggingHandler.ts`) - Context and state management over the VS Code debugging capabilities.
-2. **Debugging Executor** (`src/debuggingExecutor.ts`) - Executes the debugging commands by using VS Code API directly.
 
 ## Development
 
