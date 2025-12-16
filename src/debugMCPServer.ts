@@ -73,12 +73,24 @@ export class DebugMCPServer {
         // Start debugging tool
         this.server.addTool({
             name: 'start_debugging',
-            description: '⚠️ CRITICAL: First read debugmcp://docs/debug_instructions resource! Start a debug session for a source code file',
+            description: 'IMPORTANT DEBUGGING TOOL - Use this INSTEAD of reading code or making assumptions!' +
+                         '\n\n📍 USE THIS WHEN:' +
+                         '\n• Any bug, error, or unexpected behavior occurs' +
+                         '\n• Variables have wrong/null values' +
+                         '\n• Functions return incorrect results' +
+                         '\n• Code behaves differently than expected' +
+                         '\n• User reports \"it doesn\'t work\"' +
+                         '\n\n🧪 TEST DEBUGGING:' +
+                         '\n• Debug a specific test by providing the testName parameter' +
+                         '\n• Omit testName to debug the entire file' +
+                         '\n• Supports pytest, Jest, Mocha, JUnit, xUnit, NUnit, MSTest' +
+                         '\n\n⚠️ CRITICAL: Before using this tool, first read debugmcp://docs/debug_instructions resource!',
             parameters: z.object({
                 fileFullPath: z.string().describe('Full path to the source code file to debug'),
                 workingDirectory: z.string().optional().describe('Working directory for the debug session (optional)'),
+                testName: z.string().optional().describe('Name of the specific test function/method to debug (e.g., "test_user_login" for Python, "should validate email" for Jest). Omit to debug the entire file.'),
             }),
-            execute: async (args: { fileFullPath: string; workingDirectory?: string }) => {
+            execute: async (args: { fileFullPath: string; workingDirectory?: string; testName?: string }) => {
                 return await this.debuggingHandler.handleStartDebugging(args);
             },
         });
@@ -95,7 +107,7 @@ export class DebugMCPServer {
         // Step over tool
         this.server.addTool({
             name: 'step_over',
-            description: 'Execute the next line of code (step over function calls)',
+            description: 'Execute the current line of code without diving into it.',
             execute: async () => {
                 return await this.debuggingHandler.handleStepOver();
             },
@@ -104,7 +116,7 @@ export class DebugMCPServer {
         // Step into tool
         this.server.addTool({
             name: 'step_into',
-            description: 'Step into the current function call',
+            description: 'Dive into the current line of code.',
             execute: async () => {
                 return await this.debuggingHandler.handleStepInto();
             },
@@ -122,7 +134,7 @@ export class DebugMCPServer {
         // Continue execution tool
         this.server.addTool({
             name: 'continue_execution',
-            description: 'Continue execution until next breakpoint',
+            description: 'Resume program execution until the next breakpoint is hit or the program completes.',
             execute: async () => {
                 return await this.debuggingHandler.handleContinue();
             },
@@ -131,7 +143,7 @@ export class DebugMCPServer {
         // Restart debugging tool
         this.server.addTool({
             name: 'restart_debugging',
-            description: 'Restart the current debug session',
+            description: 'Restart the debug session from the beginning with the same configuration.',
             execute: async () => {
                 return await this.debuggingHandler.handleRestart();
             },
@@ -140,7 +152,7 @@ export class DebugMCPServer {
         // Add breakpoint tool
         this.server.addTool({
             name: 'add_breakpoint',
-            description: 'Add a breakpoint at a specific code line.',
+            description: 'Set a breakpoint to pause execution at a critical line of code. Essential for debugging: pause before potential errors, examine state at decision points, or verify code paths. Breakpoints let you inspect variables and control flow at exact moments.',
             parameters: z.object({
                 fileFullPath: z.string().describe('Full path to the file'),
                 lineContent: z.string().describe('Line content'),
@@ -155,7 +167,7 @@ export class DebugMCPServer {
         // Remove breakpoint tool
         this.server.addTool({
             name: 'remove_breakpoint',
-            description: 'Remove a breakpoint from a specific line',
+            description: 'Remove a breakpoint that is no longer needed.',
             parameters: z.object({
                 fileFullPath: z.string().describe('Full path to the file'),
                 line: z.number().describe('Line number (1-based)'),
@@ -168,7 +180,7 @@ export class DebugMCPServer {
         // List breakpoints tool
         this.server.addTool({
             name: 'list_breakpoints',
-            description: 'List all active breakpoints',
+            description: 'View all currently set breakpoints across all files.',
             execute: async () => {
                 return await this.debuggingHandler.handleListBreakpoints();
             },
@@ -177,7 +189,7 @@ export class DebugMCPServer {
         // Get variables tool
         this.server.addTool({
             name: 'get_variables_values',
-            description: 'Get variables and their values at the current execution point',
+            description: 'Inspect all variable values at the current execution point. This is your window into program state - see what data looks like at runtime, verify assumptions, identify unexpected values, and understand why code behaves as it does.',
             parameters: z.object({
                 scope: z.enum(['local', 'global', 'all']).optional().describe("Variable scope: 'local', 'global', or 'all'"),
             }),
@@ -189,7 +201,7 @@ export class DebugMCPServer {
         // Evaluate expression tool
         this.server.addTool({
             name: 'evaluate_expression',
-            description: 'Evaluate an expression in the current debug context (syntax depends on the programming language being debugged)',
+            description: 'Powerful runtime expression evaluator: Test hypotheses, check computed values, call methods, or inspect object properties in the live debug context. Goes beyond simple variable inspection - evaluate any valid expression in the target language.',
             parameters: z.object({
                 expression: z.string().describe('Expression to evaluate in the current programming language context'),
             }),
