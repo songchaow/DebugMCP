@@ -233,16 +233,19 @@ export class AgentConfigurationManager {
         quickPick.ignoreFocusOut = true;
 
         quickPick.onDidAccept(async () => {
-            const selectedItem = quickPick.selectedItems[0];
+            const selectedItems = quickPick.selectedItems;
             quickPick.hide();
 
-            if (selectedItem && selectedItem.label.includes('Configure')) {
-                // User selected an agent to configure
-                const agentDisplayName = selectedItem.detail;
-                const agent = agents.find(a => a.displayName === agentDisplayName);
-                
-                if (agent) {
-                    await this.configureAgent(agent);
+            // Configure all selected agents
+            for (const selectedItem of selectedItems) {
+                if (selectedItem && selectedItem.label.includes('Configure')) {
+                    // User selected an agent to configure
+                    const agentDisplayName = selectedItem.detail;
+                    const agent = agents.find(a => a.displayName === agentDisplayName);
+                    
+                    if (agent) {
+                        await this.configureAgent(agent);
+                    }
                 }
             }
             
@@ -259,7 +262,22 @@ export class AgentConfigurationManager {
      */
     private async configureAgent(agent: AgentInfo): Promise<void> {
         try {
-            await this.addDebugMCPToAgent(agent);
+            const success = await this.addDebugMCPToAgent(agent);
+            
+            if (success) {
+                // Show success message with green pass icon and link to open config file
+                const openConfigButton = 'Open Config';
+                const result = await vscode.window.showInformationMessage(
+                    `✅ DebugMCP successfully configured for ${agent.displayName}`,
+                    openConfigButton
+                );
+                
+                if (result === openConfigButton) {
+                    // Open the config file in VSCode
+                    const configUri = vscode.Uri.file(agent.configPath);
+                    await vscode.commands.executeCommand('vscode.open', configUri);
+                }
+            }
         } catch (error) {
             console.error(`Error configuring ${agent.name}:`, error);
             vscode.window.showErrorMessage(`Failed to configure ${agent.displayName}: ${error}`);
