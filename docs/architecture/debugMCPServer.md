@@ -6,24 +6,25 @@ The MCP server component that exposes VS Code debugging capabilities to AI agent
 
 ## Motivation
 
-AI coding agents need a standardized way to control debuggers programmatically. MCP provides this standard, and `DebugMCPServer` implements it using FastMCP with Server-Sent Events (SSE) transport for real-time bidirectional communication.
+AI coding agents need a standardized way to control debuggers programmatically. MCP provides this standard, and `DebugMCPServer` implements it using the official `@modelcontextprotocol/sdk` with Server-Sent Events (SSE) transport over an express HTTP server for real-time bidirectional communication.
 
 ## Responsibility
 
-- Initialize and manage the FastMCP server lifecycle
+- Initialize and manage the MCP server lifecycle (using `McpServer` from `@modelcontextprotocol/sdk`)
 - Register debugging tools that AI agents can invoke
 - Register documentation resources for agent guidance
 - Delegate all debugging operations to `DebuggingHandler`
-- Handle SSE transport on configurable port (default: 3001)
+- Manage SSE transport connections via `SSEServerTransport` on configurable port (default: 3001)
 
 ## Architecture Position
 
 ```
 AI Agent (MCP Client)
         │
-        ▼ SSE Connection
+        ▼ SSE Connection (GET /sse + POST /messages)
 ┌───────────────────┐
 │  DebugMCPServer   │  ◄── You are here
+│  (express + SSE)  │
 └───────────────────┘
         │
         ▼ Delegates to
@@ -41,14 +42,18 @@ AI Agent (MCP Client)
 
 ### SSE Transport
 
-Uses HTTP with Server-Sent Events for persistent connections. This allows the server to push updates to clients and maintain connection health via ping/keepalive.
+Uses HTTP with Server-Sent Events for persistent connections. The express server exposes two endpoints:
+- `GET /sse` — Establishes the SSE stream and creates a session
+- `POST /messages?sessionId=...` — Receives JSON-RPC messages from the client
+
+Each client connection creates an `SSEServerTransport` instance that is connected to the `McpServer`. The server tracks active transports by session ID and cleans them up on disconnect.
 
 ## Key Code Locations
 
 - Class definition: `src/debugMCPServer.ts`
-- Tool registration: `setupTools()` method
-- Resource registration: `setupResources()` method
-- Server startup: `start()` method
+- Tool registration: `setupTools()` method (uses `McpServer.registerTool()`)
+- Resource registration: `setupResources()` method (uses `McpServer.registerResource()`)
+- Server startup: `start()` method (creates express app with SSE/message routes)
 
 ## Exposed Tools
 
