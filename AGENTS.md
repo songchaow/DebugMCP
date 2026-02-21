@@ -61,10 +61,9 @@ Include in each source file:
 
 ## Key Dependencies
 
-- `fastmcp`: MCP server framework
+- `@modelcontextprotocol/sdk`: Official MCP server framework (`McpServer`, `SSEServerTransport`)
 - `zod`: Schema validation for tool parameters
-- `@modelcontextprotocol/sdk`: MCP protocol types
-- `express`: HTTP server (used by FastMCP)
+- `express`: HTTP server for SSE transport
 
 ## Entry Points
 
