@@ -31,6 +31,70 @@ export interface IDebuggingExecutor {
 export class DebuggingExecutor implements IDebuggingExecutor {
 
     /**
+     * Get the effective debug session for sending DAP requests.
+     * When a parent-child session hierarchy exists (e.g. android-debug launching CodeLLDB
+     * as a child session), vscode.debug.activeDebugSession may point to the parent session
+     * which does not handle DAP requests like 'evaluate', 'scopes', 'stackTrace', etc.
+     * This method traverses from the active session down to the deepest child session,
+     * which is typically the one that actually handles debugging (e.g. CodeLLDB).
+     * Falls back to the active session if no child sessions are found.
+     */
+    private getEffectiveDebugSession(): vscode.DebugSession | undefined {
+        const activeSession = vscode.debug.activeDebugSession;
+        if (!activeSession) {
+            return undefined;
+        }
+
+        // Collect all debug sessions and find the deepest child of the active session
+        const allSessions = this.getAllDebugSessions();
+        return this.findDeepestChild(activeSession, allSessions);
+    }
+
+    /**
+     * Get all currently active debug sessions by traversing the session tree.
+     * Uses vscode.debug.activeDebugSession as the root and searches for sessions
+     * that have it (or its descendants) as their parentSession.
+     */
+    private getAllDebugSessions(): vscode.DebugSession[] {
+        // VSCode doesn't provide a direct API to list all sessions.
+        // However, we can access child sessions through the onDidStartDebugSession event
+        // or by checking parentSession relationships. Since we can't enumerate all sessions
+        // directly, we'll use a workaround: check if the activeStackItem's session differs
+        // from the activeDebugSession.
+        const sessions: vscode.DebugSession[] = [];
+        const activeSession = vscode.debug.activeDebugSession;
+        if (activeSession) {
+            sessions.push(activeSession);
+        }
+
+        // Check if activeStackItem belongs to a different (child) session
+        const activeStackItem = vscode.debug.activeStackItem;
+        if (activeStackItem && 'session' in activeStackItem) {
+            const stackSession = (activeStackItem as any).session as vscode.DebugSession;
+            if (stackSession && !sessions.find(s => s.id === stackSession.id)) {
+                sessions.push(stackSession);
+            }
+        }
+
+        return sessions;
+    }
+
+    /**
+     * Find the deepest child session starting from the given session.
+     * If a session in the list has `parentSession` matching the given session,
+     * it is considered a child. We recurse until no more children are found.
+     */
+    private findDeepestChild(session: vscode.DebugSession, allSessions: vscode.DebugSession[]): vscode.DebugSession {
+        const child = allSessions.find(
+            s => s.parentSession && s.parentSession.id === session.id
+        );
+        if (child) {
+            return this.findDeepestChild(child, allSessions);
+        }
+        return session;
+    }
+
+    /**
      * Start a debugging session
      */
     public async startDebugging(
@@ -57,6 +121,8 @@ export class DebuggingExecutor implements IDebuggingExecutor {
      */
     public async stopDebugging(session?: vscode.DebugSession): Promise<void> {
         try {
+            // When stopping, we stop the top-level (parent) session which will
+            // also tear down all child sessions.
             const activeSession = session || vscode.debug.activeDebugSession;
             if (activeSession) {
                 await vscode.debug.stopDebugging(activeSession);
@@ -171,8 +237,10 @@ export class DebuggingExecutor implements IDebuggingExecutor {
                 if (activeStackItem && 'frameId' in activeStackItem) {
                     state.updateContext(activeStackItem.frameId, activeStackItem.threadId);
                     
+                    // Use the effective (child) session for DAP requests
+                    const effectiveSession = this.getEffectiveDebugSession() || activeSession;
                     // Extract frame name from stack frame
-                    await this.extractFrameName(activeSession, activeStackItem.frameId, state);
+                    await this.extractFrameName(effectiveSession, activeStackItem.frameId, state);
                     
                     // Get the active editor
                     const activeEditor = vscode.window.activeTextEditor;
@@ -234,7 +302,7 @@ export class DebuggingExecutor implements IDebuggingExecutor {
      */
     public async getVariables(frameId: number, scope?: 'local' | 'global' | 'all'): Promise<any> {
         try {
-            const activeSession = vscode.debug.activeDebugSession;
+            const activeSession = this.getEffectiveDebugSession();
             if (!activeSession) {
                 throw new Error('No active debug session');
             }
@@ -277,7 +345,7 @@ export class DebuggingExecutor implements IDebuggingExecutor {
      */
     public async evaluateExpression(expression: string, frameId: number): Promise<any> {
         try {
-            const activeSession = vscode.debug.activeDebugSession;
+            const activeSession = this.getEffectiveDebugSession();
             if (!activeSession) {
                 throw new Error('No active debug session');
             }
