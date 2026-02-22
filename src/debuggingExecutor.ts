@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 import { DebugState } from './debugState';
+import { logger } from './utils/logger';
 
 /**
  * Captures DAP output events from debug adapter sessions.
@@ -13,6 +14,7 @@ export class OutputCapturer {
     private capturing: boolean = false;
     private targetSessionId: string | null = null;
     private disposable: vscode.Disposable | null = null;
+    private trackedSessions: Set<string> = new Set();
 
     /**
      * Register the debug adapter tracker factory globally.
@@ -25,20 +27,24 @@ export class OutputCapturer {
         const self = this;
         this.disposable = vscode.debug.registerDebugAdapterTrackerFactory('*', {
             createDebugAdapterTracker(session: vscode.DebugSession) {
+                self.trackedSessions.add(session.id);
+                logger.info(`[OutputCapturer] Tracker created for session: id=${session.id}, type=${session.type}, name=${session.name}, parentSession=${session.parentSession?.id || 'none'}`);
                 return {
                     onDidSendMessage(message: any) {
-                        if (!self.capturing) {
-                            return;
-                        }
-                        // Only capture from the target session
-                        if (self.targetSessionId && session.id !== self.targetSessionId) {
-                            return;
-                        }
                         // Capture 'output' events from the debug adapter
                         if (message.type === 'event' && message.event === 'output') {
                             const body = message.body;
                             if (body && body.output) {
-                                self.outputBuffer += body.output;
+                                // Always log output events for diagnostics
+                                if (self.capturing) {
+                                    // If we have a target session, only capture from matching sessions
+                                    if (!self.targetSessionId || session.id === self.targetSessionId) {
+                                        self.outputBuffer += body.output;
+                                        logger.info(`[OutputCapturer] Captured output (${body.output.length} chars) from session ${session.id}: ${body.output.substring(0, 100)}...`);
+                                    } else {
+                                        logger.info(`[OutputCapturer] Ignored output from non-target session ${session.id} (target: ${self.targetSessionId})`);
+                                    }
+                                }
                             }
                         }
                     }
@@ -48,12 +54,21 @@ export class OutputCapturer {
     }
 
     /**
-     * Start capturing output for a specific session.
+     * Get the set of tracked session IDs (for diagnostics).
      */
-    public startCapture(sessionId: string): void {
+    public getTrackedSessions(): Set<string> {
+        return this.trackedSessions;
+    }
+
+    /**
+     * Start capturing output for a specific session.
+     * If sessionId is null, captures from all tracked sessions.
+     */
+    public startCapture(sessionId: string | null): void {
         this.outputBuffer = '';
         this.targetSessionId = sessionId;
         this.capturing = true;
+        logger.info(`[OutputCapturer] Started capture for session: ${sessionId || 'all'}, tracked sessions: [${Array.from(this.trackedSessions).join(', ')}]`);
     }
 
     /**
@@ -64,6 +79,7 @@ export class OutputCapturer {
         this.targetSessionId = null;
         const output = this.outputBuffer;
         this.outputBuffer = '';
+        logger.info(`[OutputCapturer] Stopped capture. Captured ${output.length} chars total.`);
         return output;
     }
 
@@ -123,12 +139,25 @@ export class DebuggingExecutor implements IDebuggingExecutor {
     private getEffectiveDebugSession(): vscode.DebugSession | undefined {
         const activeSession = vscode.debug.activeDebugSession;
         if (!activeSession) {
+            logger.info('[getEffectiveDebugSession] No active debug session');
             return undefined;
         }
 
+        logger.info(`[getEffectiveDebugSession] activeDebugSession: id=${activeSession.id}, type=${activeSession.type}, name=${activeSession.name}`);
+
         // Collect all debug sessions and find the deepest child of the active session
         const allSessions = this.getAllDebugSessions();
-        return this.findDeepestChild(activeSession, allSessions);
+        const effective = this.findDeepestChild(activeSession, allSessions);
+        
+        logger.info(`[getEffectiveDebugSession] Effective session: id=${effective.id}, type=${effective.type}, name=${effective.name}`);
+        
+        // Check if the effective session has a tracker registered
+        const trackedSessions = this.outputCapturer.getTrackedSessions();
+        if (!trackedSessions.has(effective.id)) {
+            logger.info(`[getEffectiveDebugSession] WARNING: Effective session ${effective.id} does NOT have a tracker. Tracked sessions: [${Array.from(trackedSessions).join(', ')}]`);
+        }
+        
+        return effective;
     }
 
     /**
@@ -138,25 +167,33 @@ export class DebuggingExecutor implements IDebuggingExecutor {
      */
     private getAllDebugSessions(): vscode.DebugSession[] {
         // VSCode doesn't provide a direct API to list all sessions.
-        // However, we can access child sessions through the onDidStartDebugSession event
-        // or by checking parentSession relationships. Since we can't enumerate all sessions
-        // directly, we'll use a workaround: check if the activeStackItem's session differs
-        // from the activeDebugSession.
+        // We use multiple strategies to discover sessions:
+        // 1. activeDebugSession
+        // 2. activeStackItem's session (if available)
+        // 3. All sessions tracked by OutputCapturer (most reliable)
         const sessions: vscode.DebugSession[] = [];
+        const seenIds = new Set<string>();
         const activeSession = vscode.debug.activeDebugSession;
         if (activeSession) {
             sessions.push(activeSession);
+            seenIds.add(activeSession.id);
         }
 
         // Check if activeStackItem belongs to a different (child) session
         const activeStackItem = vscode.debug.activeStackItem;
-        if (activeStackItem && 'session' in activeStackItem) {
-            const stackSession = (activeStackItem as any).session as vscode.DebugSession;
-            if (stackSession && !sessions.find(s => s.id === stackSession.id)) {
-                sessions.push(stackSession);
+        if (activeStackItem) {
+            logger.info(`[getAllDebugSessions] activeStackItem type: ${typeof activeStackItem}, keys: ${Object.keys(activeStackItem).join(', ')}`);
+            if ('session' in activeStackItem) {
+                const stackSession = (activeStackItem as any).session as vscode.DebugSession;
+                if (stackSession && !seenIds.has(stackSession.id)) {
+                    sessions.push(stackSession);
+                    seenIds.add(stackSession.id);
+                    logger.info(`[getAllDebugSessions] Found child session via activeStackItem: id=${stackSession.id}, type=${stackSession.type}, name=${stackSession.name}`);
+                }
             }
         }
 
+        logger.info(`[getAllDebugSessions] Found ${sessions.length} sessions: ${sessions.map(s => `${s.id}(${s.type}:${s.name})`).join(', ')}`);
         return sessions;
     }
 
@@ -313,15 +350,19 @@ export class DebuggingExecutor implements IDebuggingExecutor {
             const activeSession = vscode.debug.activeDebugSession;
             if (activeSession) {
                 state.sessionActive = true;
+                logger.info(`[getCurrentDebugState] Active session: id=${activeSession.id}, type=${activeSession.type}, name=${activeSession.name}`);
                 
                 const activeStackItem = vscode.debug.activeStackItem;
                 if (activeStackItem && 'frameId' in activeStackItem) {
                     state.updateContext(activeStackItem.frameId, activeStackItem.threadId);
+                    logger.info(`[getCurrentDebugState] activeStackItem: frameId=${activeStackItem.frameId}, threadId=${activeStackItem.threadId}`);
                     
                     // Use the effective (child) session for DAP requests
                     const effectiveSession = this.getEffectiveDebugSession() || activeSession;
                     // Extract frame name from stack frame
                     await this.extractFrameName(effectiveSession, activeStackItem.frameId, state);
+                    
+                    logger.info(`[getCurrentDebugState] After extractFrameName: frameName=${state.frameName}, stackFrames=${state.stackFrames?.length || 0}`);
                     
                     // Get the active editor
                     const activeEditor = vscode.window.activeTextEditor;
@@ -360,12 +401,16 @@ export class DebuggingExecutor implements IDebuggingExecutor {
      */
     private async extractFrameName(session: vscode.DebugSession, frameId: number, state: DebugState): Promise<void> {
         try {
+            logger.info(`[extractFrameName] Requesting stackTrace from session ${session.id} (${session.type}:${session.name}), threadId=${state.threadId}, frameId=${frameId}`);
+            
             // Get full stack trace (up to 50 frames)
             const stackTraceResponse = await session.customRequest('stackTrace', {
                 threadId: state.threadId,
                 startFrame: 0,
                 levels: 50
             });
+
+            logger.info(`[extractFrameName] stackTrace response: ${stackTraceResponse?.stackFrames?.length || 0} frames, totalFrames=${stackTraceResponse?.totalFrames || 'unknown'}`);
 
             if (stackTraceResponse?.stackFrames && stackTraceResponse.stackFrames.length > 0) {
                 const currentFrame = stackTraceResponse.stackFrames[0];
@@ -380,9 +425,21 @@ export class DebuggingExecutor implements IDebuggingExecutor {
                     id: frame.id
                 }));
                 state.updateStackFrames(frames);
+                
+                // Log first few frames for diagnostics
+                frames.slice(0, 5).forEach((f: any, i: number) => {
+                    logger.info(`[extractFrameName]   #${i} ${f.name} at ${f.source || '<no source>'}:${f.line || '?'}`);
+                });
+                if (frames.length > 5) {
+                    logger.info(`[extractFrameName]   ... and ${frames.length - 5} more frames`);
+                }
+            } else {
+                logger.info('[extractFrameName] No stack frames returned');
+                state.updateFrameName(null);
+                state.updateStackFrames(null);
             }
         } catch (error) {
-            console.log('Unable to extract frame name:', error);
+            logger.error(`[extractFrameName] Error requesting stackTrace: ${error}`);
             // Set empty frame name on error
             state.updateFrameName(null);
             state.updateStackFrames(null);
@@ -446,8 +503,12 @@ export class DebuggingExecutor implements IDebuggingExecutor {
                 throw new Error('No active debug session');
             }
 
-            // Start capturing output events for this session
-            this.outputCapturer.startCapture(activeSession.id);
+            logger.info(`[evaluateExpression] Evaluating "${expression}" on session ${activeSession.id} (${activeSession.type}:${activeSession.name}), frameId=${frameId}`);
+
+            // Start capturing output events from ALL sessions (not just the target),
+            // because the session ID we send the request to might differ from the session
+            // that actually sends the output events (e.g. in parent-child session setups).
+            this.outputCapturer.startCapture(null);
 
             const response = await activeSession.customRequest('evaluate', {
                 expression: expression,
@@ -455,21 +516,30 @@ export class DebuggingExecutor implements IDebuggingExecutor {
                 context: 'repl'
             });
 
+            logger.info(`[evaluateExpression] evaluate response: result="${response?.result || ''}" (${(response?.result || '').length} chars), type=${response?.type || 'unknown'}`);
+
             // Give a brief moment for output events to arrive
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 300));
 
             // Stop capturing and get any captured output
             const capturedOutput = this.outputCapturer.stopCapture();
 
+            logger.info(`[evaluateExpression] Captured output: ${capturedOutput.length} chars`);
+            if (capturedOutput) {
+                logger.info(`[evaluateExpression] Captured: "${capturedOutput.substring(0, 200)}${capturedOutput.length > 200 ? '...' : ''}"`);
+            }
+
             // If response.result is empty but we captured output, use the captured output
             if ((!response.result || response.result === '') && capturedOutput) {
                 response.result = capturedOutput.trim();
+                logger.info(`[evaluateExpression] Using captured output as result`);
             }
 
             return response;
         } catch (error) {
             // Make sure to stop capturing on error
             this.outputCapturer.stopCapture();
+            logger.error(`[evaluateExpression] Error: ${error}`);
             throw new Error(`Failed to evaluate expression: ${error}`);
         }
     }
