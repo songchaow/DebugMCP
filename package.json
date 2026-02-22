@@ -68,6 +68,13 @@
           "type": "number",
           "default": 3001,
           "description": "Port number for the DebugMCP server"
+        },
+        "debugmcp.stateUpdateDelayMs": {
+          "type": "number",
+          "default": 300,
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "Initial delay in milliseconds to wait for debugger state updates after executing debug commands. Increase this value if you experience state synchronization issues on slower systems. (Default: 300ms)"
         }
       }
     }

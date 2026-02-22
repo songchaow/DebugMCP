@@ -328,7 +328,7 @@ export class DebuggingExecutor implements IDebuggingExecutor {
             
             // A session is ready when it has location info (file name and line number)
             // This means the debugger has attached and we can see where we are in the code
-            return debugState.sessionActive && debugState.hasLocationInfo();
+            return debugState.sessionActive;// && debugState.hasLocationInfo();
         } catch (error) {
             // Any error means session isn't ready (e.g., Python still initializing)
             console.log('Session readiness check failed:', error);

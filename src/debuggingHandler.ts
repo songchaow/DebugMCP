@@ -42,6 +42,14 @@ export class DebuggingHandler implements IDebuggingHandler {
     }
 
     /**
+     * Get the configured state update delay from VSCode settings
+     */
+    private getStateUpdateDelay(): number {
+        const config = vscode.workspace.getConfiguration('debugmcp');
+        return config.get<number>('stateUpdateDelayMs', 300);
+    }
+
+    /**
      * Start a debugging session
      */
     public async handleStartDebugging(args: { 
@@ -507,6 +515,12 @@ export class DebuggingHandler implements IDebuggingHandler {
         const maxDelay = 1000; // Cap at 1 second
         const startTime = Date.now();
         let attempt = 0;
+        
+        // Add initial delay to allow debugger to update its state
+        // This prevents reading stale state immediately after executing a debug command
+        // The delay is configurable via debugmcp.stateUpdateDelayMs setting
+        const stateUpdateDelay = this.getStateUpdateDelay();
+        await new Promise(resolve => setTimeout(resolve, stateUpdateDelay));
                 
         while (Date.now() - startTime < this.timeoutInSeconds * 1000) {
             const currentState = await this.executor.getCurrentDebugState(this.numNextLines);

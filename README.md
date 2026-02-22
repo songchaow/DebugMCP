@@ -171,7 +171,8 @@ Configure DebugMCP behavior in VSCode settings:
 ```json
 {
   "debugmcp.serverPort": 3001,
-  "debugmcp.timeoutInSeconds": 180
+  "debugmcp.timeoutInSeconds": 180,
+  "debugmcp.stateUpdateDelayMs": 300
 }
 ```
 
@@ -179,6 +180,7 @@ Configure DebugMCP behavior in VSCode settings:
 |---------|---------|-------------|
 | `debugmcp.serverPort` | `3001` | Port number for the MCP server |
 | `debugmcp.timeoutInSeconds` | `180` | Timeout for debugging operations |
+| `debugmcp.stateUpdateDelayMs` | `300` | Initial delay (in milliseconds) to wait for debugger state updates. Increase this value (e.g., 500-800) if you experience state synchronization issues on slower systems or with complex debuggers. |
 
 
 ## Troubleshooting
