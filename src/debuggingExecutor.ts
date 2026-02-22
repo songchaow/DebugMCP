@@ -31,21 +31,32 @@ export class OutputCapturer {
                 logger.info(`[OutputCapturer] Tracker created for session: id=${session.id}, type=${session.type}, name=${session.name}, parentSession=${session.parentSession?.id || 'none'}`);
                 return {
                     onDidSendMessage(message: any) {
-                        // Capture 'output' events from the debug adapter
+                        // Always log output events for diagnostics (regardless of capturing state)
                         if (message.type === 'event' && message.event === 'output') {
                             const body = message.body;
+                            const outputText = body?.output || '';
+                            const category = body?.category || 'unknown';
+                            logger.info(`[OutputCapturer] OUTPUT EVENT from session ${session.id} (${session.name}), category=${category}, len=${outputText.length}: ${outputText.substring(0, 150).replace(/\n/g, '\\n')}`);
                             if (body && body.output) {
-                                // Always log output events for diagnostics
                                 if (self.capturing) {
-                                    // If we have a target session, only capture from matching sessions
                                     if (!self.targetSessionId || session.id === self.targetSessionId) {
                                         self.outputBuffer += body.output;
-                                        logger.info(`[OutputCapturer] Captured output (${body.output.length} chars) from session ${session.id}: ${body.output.substring(0, 100)}...`);
-                                    } else {
-                                        logger.info(`[OutputCapturer] Ignored output from non-target session ${session.id} (target: ${self.targetSessionId})`);
                                     }
                                 }
                             }
+                        }
+                        // Log other important DAP events for diagnostics
+                        else if (message.type === 'event') {
+                            // Log stopped, continued, exited, terminated events
+                            if (['stopped', 'continued', 'exited', 'terminated', 'thread', 'module', 'process'].includes(message.event)) {
+                                const bodyStr = message.body ? JSON.stringify(message.body).substring(0, 200) : 'no body';
+                                logger.info(`[OutputCapturer] DAP EVENT from session ${session.id} (${session.name}): ${message.event} - ${bodyStr}`);
+                            }
+                        }
+                        // Log evaluate responses
+                        else if (message.type === 'response' && message.command === 'evaluate') {
+                            const result = message.body?.result || '';
+                            logger.info(`[OutputCapturer] EVALUATE RESPONSE from session ${session.id} (${session.name}): success=${message.success}, result_len=${result.length}, result="${result.substring(0, 150).replace(/\n/g, '\\n')}"`);
                         }
                     }
                 };
