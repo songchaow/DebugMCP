@@ -3,10 +3,12 @@
 import * as vscode from 'vscode';
 import { DebugMCPServer } from './debugMCPServer';
 import { AgentConfigurationManager } from './utils/agentConfigurationManager';
+import { OutputCapturer } from './debuggingExecutor';
 import { logger, LogLevel } from './utils/logger';
 
 let mcpServer: DebugMCPServer | null = null;
 let agentConfigManager: AgentConfigurationManager | null = null;
+let outputCapturer: OutputCapturer | null = null;
 
 export async function activate(context: vscode.ExtensionContext) {
     // Initialize logging first
@@ -21,6 +23,11 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.info(`Using timeoutInSeconds: ${timeoutInSeconds} seconds`);
     logger.info(`Using serverPort: ${serverPort}`);
 
+    // Initialize OutputCapturer early so it captures all debug sessions
+    outputCapturer = new OutputCapturer();
+    outputCapturer.register();
+    logger.info('OutputCapturer registered for DAP output interception');
+
     // Initialize Agent Configuration Manager
     agentConfigManager = new AgentConfigurationManager(context, timeoutInSeconds, serverPort);
 
@@ -28,7 +35,7 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
         logger.info('Starting MCP server initialization...');
         
-        mcpServer = new DebugMCPServer(serverPort, timeoutInSeconds);
+        mcpServer = new DebugMCPServer(serverPort, timeoutInSeconds, outputCapturer);
         await mcpServer.initialize();
         await mcpServer.start();
         
@@ -102,6 +109,12 @@ function registerCommands(context: vscode.ExtensionContext) {
 export async function deactivate() {
     logger.info('DebugMCP extension deactivating...');
     
+    // Clean up OutputCapturer
+    if (outputCapturer) {
+        outputCapturer.dispose();
+        outputCapturer = null;
+    }
+
     // Clean up MCP server
     if (mcpServer) {
         mcpServer.stop().catch(error => {

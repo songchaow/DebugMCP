@@ -448,17 +448,19 @@ export class DebuggingHandler implements IDebuggingHandler {
             output += `Line: ${state.currentLine}\n`;        
             
             output += `${state.currentLine}: ${state.currentLineContent}\n`;
-            
-            // Show next few lines for context
-            // if (state.nextLines && state.nextLines.length > 0) {
-            //     output += '\nNext lines:\n';
-            //     state.nextLines.forEach((line, index) => {
-            //         const lineNumber = (state.currentLine || 0) + index + 1;
-            //         output += `   ${lineNumber}: ${line}\n`;
-            //     });
-            // }
         } else {
             output += 'No location information available. The session might have stopped or ended\n';
+        }
+
+        // Show full stack trace
+        if (state.hasStackFrames()) {
+            output += '\nCall Stack:\n----------\n';
+            state.stackFrames!.forEach((frame, index) => {
+                const source = frame.source ? ` at ${frame.source}` : '';
+                const line = frame.line ? `:${frame.line}` : '';
+                const indicator = index === 0 ? ' ▶' : '  ';
+                output += `${indicator} #${index} ${frame.name}${source}${line}\n`;
+            });
         }
                 
         return output;

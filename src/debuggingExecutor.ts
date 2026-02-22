@@ -4,6 +4,81 @@ import * as vscode from 'vscode';
 import { DebugState } from './debugState';
 
 /**
+ * Captures DAP output events from debug adapter sessions.
+ * Must be registered early (at extension activation time) via
+ * registerDebugAdapterTrackerFactory so it captures events from all sessions.
+ */
+export class OutputCapturer {
+    private outputBuffer: string = '';
+    private capturing: boolean = false;
+    private targetSessionId: string | null = null;
+    private disposable: vscode.Disposable | null = null;
+
+    /**
+     * Register the debug adapter tracker factory globally.
+     * Call this once during extension activation.
+     */
+    public register(): void {
+        if (this.disposable) {
+            return;  // Already registered
+        }
+        const self = this;
+        this.disposable = vscode.debug.registerDebugAdapterTrackerFactory('*', {
+            createDebugAdapterTracker(session: vscode.DebugSession) {
+                return {
+                    onDidSendMessage(message: any) {
+                        if (!self.capturing) {
+                            return;
+                        }
+                        // Only capture from the target session
+                        if (self.targetSessionId && session.id !== self.targetSessionId) {
+                            return;
+                        }
+                        // Capture 'output' events from the debug adapter
+                        if (message.type === 'event' && message.event === 'output') {
+                            const body = message.body;
+                            if (body && body.output) {
+                                self.outputBuffer += body.output;
+                            }
+                        }
+                    }
+                };
+            }
+        });
+    }
+
+    /**
+     * Start capturing output for a specific session.
+     */
+    public startCapture(sessionId: string): void {
+        this.outputBuffer = '';
+        this.targetSessionId = sessionId;
+        this.capturing = true;
+    }
+
+    /**
+     * Stop capturing and return the captured output.
+     */
+    public stopCapture(): string {
+        this.capturing = false;
+        this.targetSessionId = null;
+        const output = this.outputBuffer;
+        this.outputBuffer = '';
+        return output;
+    }
+
+    /**
+     * Dispose the tracker factory registration.
+     */
+    public dispose(): void {
+        if (this.disposable) {
+            this.disposable.dispose();
+            this.disposable = null;
+        }
+    }
+}
+
+/**
  * Interface for debugging execution operations
  */
 export interface IDebuggingExecutor {
@@ -29,6 +104,12 @@ export interface IDebuggingExecutor {
  * Responsible for executing VS Code debugging commands and managing debug sessions
  */
 export class DebuggingExecutor implements IDebuggingExecutor {
+
+    private outputCapturer: OutputCapturer;
+
+    constructor(outputCapturer: OutputCapturer) {
+        this.outputCapturer = outputCapturer;
+    }
 
     /**
      * Get the effective debug session for sending DAP requests.
@@ -275,25 +356,36 @@ export class DebuggingExecutor implements IDebuggingExecutor {
     }
 
     /**
-     * Extract frame name from the current stack frame
+     * Extract frame name and full stack trace from the current stack frame
      */
     private async extractFrameName(session: vscode.DebugSession, frameId: number, state: DebugState): Promise<void> {
         try {
-            // Get stack trace to extract frame name
+            // Get full stack trace (up to 50 frames)
             const stackTraceResponse = await session.customRequest('stackTrace', {
                 threadId: state.threadId,
                 startFrame: 0,
-                levels: 1
+                levels: 50
             });
 
             if (stackTraceResponse?.stackFrames && stackTraceResponse.stackFrames.length > 0) {
                 const currentFrame = stackTraceResponse.stackFrames[0];
                 state.updateFrameName(currentFrame.name || null);
+
+                // Store full stack trace
+                const frames = stackTraceResponse.stackFrames.map((frame: any) => ({
+                    name: frame.name || '<unknown>',
+                    source: frame.source?.path || frame.source?.name || undefined,
+                    line: frame.line || undefined,
+                    column: frame.column || undefined,
+                    id: frame.id
+                }));
+                state.updateStackFrames(frames);
             }
         } catch (error) {
             console.log('Unable to extract frame name:', error);
             // Set empty frame name on error
             state.updateFrameName(null);
+            state.updateStackFrames(null);
         }
     }
 
@@ -341,7 +433,11 @@ export class DebuggingExecutor implements IDebuggingExecutor {
     }
 
     /**
-     * Evaluate an expression in the current debug context
+     * Evaluate an expression in the current debug context.
+     * For CodeLLDB, LLDB commands (like bt, thread list) send their output
+     * through DAP 'output' events rather than the 'evaluate' response result.
+     * This method uses the OutputCapturer (registered at extension activation)
+     * to intercept those output messages.
      */
     public async evaluateExpression(expression: string, frameId: number): Promise<any> {
         try {
@@ -350,14 +446,30 @@ export class DebuggingExecutor implements IDebuggingExecutor {
                 throw new Error('No active debug session');
             }
 
+            // Start capturing output events for this session
+            this.outputCapturer.startCapture(activeSession.id);
+
             const response = await activeSession.customRequest('evaluate', {
                 expression: expression,
                 frameId: frameId,
                 context: 'repl'
             });
 
+            // Give a brief moment for output events to arrive
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Stop capturing and get any captured output
+            const capturedOutput = this.outputCapturer.stopCapture();
+
+            // If response.result is empty but we captured output, use the captured output
+            if ((!response.result || response.result === '') && capturedOutput) {
+                response.result = capturedOutput.trim();
+            }
+
             return response;
         } catch (error) {
+            // Make sure to stop capturing on error
+            this.outputCapturer.stopCapture();
             throw new Error(`Failed to evaluate expression: ${error}`);
         }
     }

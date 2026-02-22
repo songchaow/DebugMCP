@@ -9,7 +9,8 @@ import {
     DebuggingExecutor,
     ConfigurationManager,
     DebuggingHandler,
-    IDebuggingHandler
+    IDebuggingHandler,
+    OutputCapturer
 } from '.';
 import { logger } from './utils/logger';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -27,9 +28,9 @@ export class DebugMCPServer {
     private debuggingHandler: IDebuggingHandler;
     private transports: Map<string, SSEServerTransport> = new Map();
 
-    constructor(port: number, timeoutInSeconds: number) {
+    constructor(port: number, timeoutInSeconds: number, outputCapturer: OutputCapturer) {
         // Initialize the debugging components with dependency injection
-        const executor = new DebuggingExecutor();
+        const executor = new DebuggingExecutor(outputCapturer);
         const configManager = new ConfigurationManager();
         this.debuggingHandler = new DebuggingHandler(executor, configManager, timeoutInSeconds);
         this.port = port;

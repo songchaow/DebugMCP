@@ -13,6 +13,7 @@ export class DebugState {
     public frameId: number | null;
     public threadId: number | null;
     public frameName: string | null;
+    public stackFrames: Array<{ name: string; source?: string; line?: number; column?: number; id: number }> | null;
     // TODO breakpoints
     
     constructor() {
@@ -25,6 +26,7 @@ export class DebugState {
         this.frameId = null;
         this.threadId = null;
         this.frameName = null;
+        this.stackFrames = null;
     }
 
     /**
@@ -40,6 +42,7 @@ export class DebugState {
         this.frameId = null;
         this.threadId = null;
         this.frameName = null;
+        this.stackFrames = null;
     }
 
     /**
@@ -92,6 +95,20 @@ export class DebugState {
     }
 
     /**
+     * Update the full stack trace
+     */
+    public updateStackFrames(frames: Array<{ name: string; source?: string; line?: number; column?: number; id: number }> | null): void {
+        this.stackFrames = frames;
+    }
+
+    /**
+     * Check if stack frames are available
+     */
+    public hasStackFrames(): boolean {
+        return this.stackFrames !== null && this.stackFrames.length > 0;
+    }
+
+    /**
      * Check if frame name is available
      */
     public hasFrameName(): boolean {
@@ -112,6 +129,7 @@ export class DebugState {
         cloned.frameId = this.frameId;
         cloned.threadId = this.threadId;
         cloned.frameName = this.frameName;
+        cloned.stackFrames = this.stackFrames ? [...this.stackFrames] : null;
         return cloned;
     }
 }
